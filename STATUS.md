@@ -3,7 +3,7 @@ repo: https://github.com/leandergrech/rl-rocket-engine-control
 pages: https://leandergrech.github.io/rl-rocket-engine-control/
 step: 6
 state: blocked
-updated: 2026-09-30T17:05:26Z
+updated: 2026-09-30T22:23:50Z
 blockers: LUMEN Control Challenge simulator, evaluation service and fine-tuning dataset not public; DLR grants access by email (legal issues pending per 17 Sep 2026 pitch)
 next: Leander sends docs/email-to-dlr.md; when scripts/check_challenge.py reports a release or DLR grants access, resume at step 2 (install in .venv), then build env wrapper, baselines, notebooks (steps 4-5)
 log:
@@ -14,3 +14,4 @@ log:
 - 2026-09-30T17:05:25Z step 2 note: search continued to 16:38Z (30 min direct); found benchmark design (AI4Aerospace 2025, 7 Gym test cases), DX'25 LUMEN precedent (simulator on request by email), SSRN 2026 simulator preprint
 - 2026-09-30T17:05:25Z steps 3-5 (blocked branch): all docs written (index, for-leander, 01-07), email-to-dlr.md drafted (not sent), release checker + tests + reproduce.sh; pytest 7 passed, reproduce.sh ok, mkdocs build --strict ok
 - 2026-09-30T17:05:26Z step 6 done: Pages enabled (workflow build), site returns 200; stopped per brief (no stand-in simulator, no email sent)
+- 2026-09-30T22:23:50Z docs visuals: Methalox Plume theme chosen by Leander from 4 rendered options; 13 Mermaid diagrams and 14 Vega-Lite charts added (each beside its table or a table view), themed light/dark; pytest 36 passed, mkdocs --strict ok, Pages redeployed
