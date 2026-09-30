@@ -201,13 +201,13 @@ The crystal-alignment work at CERN (TWOCRYST/AICRYSCON) is described from Leande
 | Python | 3.10.12 | `.venv` |
 | mkdocs / mkdocs-material / pymdown-extensions / Markdown | 1.6.1 / 9.7.7 / 12.1 / 3.10.3 | Docs site |
 | pytest | 9.1.1 | Tests |
-| numpy | 2.2.6 | Package dependency |
+| PyYAML | 6.0.3 | Reads `mkdocs.yml` in the docs test |
 | yt-dlp | 2026.08.19 | Used once, in a scratch environment, to fetch the livestream auto-captions; not a dependency |
 
 ## 7.10 Licences
 
 - **This repository:** MIT (see `LICENSE`).
-- **Python dependencies:** MkDocs (BSD-2-Clause), Material for MkDocs (MIT), pymdown-extensions (MIT), Markdown (BSD-3-Clause), pytest (MIT), NumPy (BSD-3-Clause). Read from the installed package metadata.
+- **Python dependencies (dev only; the package itself has none):** MkDocs (BSD-2-Clause), Material for MkDocs (MIT), pymdown-extensions (MIT), Markdown (BSD-3-Clause), PyYAML (MIT), pytest (MIT). Read from the installed package metadata.
 - **Documents cited, not redistributed:** Dresia thesis CC BY-NC 4.0; Hörger et al. 2024 CC BY-NC-ND 4.0; DX 2024 and DX'25 papers CC BY 4.0; rocket-recycling CC BY-NC-SA 4.0.
 - **Simulation tools behind the benchmark:** EcosimPro is commercial software by Empresarios Agrupados Internacional (EAI); ESPSS is ESA-proprietary and needs "prior approval from ESA" ([brochure](https://www.ecosimpro.com/wp-content/uploads/2015/02/ecosimpro_brochure_library_espss.pdf)). The challenge's licence terms are unknown until DLR publishes them.
 - No third-party code, data or figures are redistributed in this repository.
