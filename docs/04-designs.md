@@ -19,6 +19,37 @@ This page lines up every published controller for this problem class that I coul
 
 Sources and details for each row follow.
 
+The training column on one scale: every published agent used between 10⁵ and 5 × 10⁶ environment steps. The orange line marks what one laptop-CPU hour would buy at the thesis simulator's speed. That rate is my extrapolation from "about one million training steps per day" on 10 instances ([thesis p. 83](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=100)); the challenge simulator's speed is unknown.
+
+```vegalite
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+  "title": {"text": "Environment steps used to train each agent", "subtitle": "Log scale. Sources: arXiv:2006.11108 Table III; SP2020_533 Table 3; thesis Table 5.3 and p. 104"},
+  "width": "container", "height": 190,
+  "layer": [
+    {"data": {"values": [
+        {"agent": "D7 · TD3, gas-generator model", "steps": 100000, "label": "100 k"},
+        {"agent": "D6 · SAC, early LUMEN model", "steps": 200000, "label": "200 k"},
+        {"agent": "D1 · SAC, nominal model", "steps": 1500000, "label": "1.5 M"},
+        {"agent": "D1 · SAC, domain-randomised", "steps": 2900000, "label": "2.9 M"},
+        {"agent": "D3 · SAC, hardware controller", "steps": 5000000, "label": "≈ 5 M"}]},
+     "layer": [
+       {"mark": {"type": "point", "filled": true, "size": 100, "color": "var(--viz-s1)", "stroke": "var(--md-default-bg-color)", "strokeWidth": 2},
+        "encoding": {"y": {"field": "agent", "type": "nominal", "sort": null, "title": null, "axis": {"labelLimit": 260}},
+          "x": {"field": "steps", "type": "quantitative", "scale": {"type": "log", "domain": [20000, 10000000]}, "title": "Environment steps (log scale)", "axis": {"format": "~s"}},
+          "tooltip": [{"field": "agent"}, {"field": "label", "title": "steps"}]}},
+       {"mark": {"type": "text", "align": "left", "dx": 9},
+        "encoding": {"y": {"field": "agent", "type": "nominal", "sort": null}, "x": {"field": "steps", "type": "quantitative"}, "text": {"field": "label"}}}
+     ]},
+    {"data": {"values": [{"x": 42000}]},
+     "layer": [
+       {"mark": {"type": "rule", "strokeWidth": 2, "color": "var(--viz-s2)"}, "encoding": {"x": {"field": "x", "type": "quantitative"}}},
+       {"mark": {"type": "text", "align": "left", "dx": 5, "y": -6, "text": "≈ 4 × 10⁴: one CPU hour (extrapolated)"}, "encoding": {"x": {"field": "x", "type": "quantitative"}}}
+     ]}
+  ]
+}
+```
+
 ## 4.2 D1 vs D2: SAC against MPC on the same simulated task
 
 Both come from the Dresia thesis, Chapter 5 ([PDF pp. 94–115](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=94)). The task tracks a fixed 60 s trajectory of $p_{cc}$ and $R_{OF}$ across the envelope while minimising the turbine flow vented overboard.
@@ -33,6 +64,7 @@ Both come from the Dresia thesis, Chapter 5 ([PDF pp. 94–115](https://elib.dlr
     - an economic term $-0.3\,(\dot m_{\mathrm{OTP,turb}} + \dot m_{\mathrm{FTP,turb}})$.
 
     See eqs. 5.6–5.9 and [Table A.2](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=164).
+
 - *Compute:* a Xeon W-2265 workstation with an RTX 3090, 10 parallel EcosimPro instances, "about one million training steps per day"; convergence after about 1.5 M steps or 3000 episodes of 500 steps ([p. 83–84](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=100)). My derived figure: that is roughly 1.2 control steps per second per simulator instance, so the simulator, not the network, is the bottleneck.
 
 **D2, MPC.**
@@ -42,6 +74,23 @@ Both come from the Dresia thesis, Chapter 5 ([PDF pp. 94–115](https://elib.dlr
 - A dynamic optimiser runs on a "data-based Wiener model with linear dynamics and a nonlinear steady-state output function in the form of a neural network", fitted to simulation data.
 - Offset-free tracking uses disturbance estimation with an extended Kalman filter, and constraints are soft ([p. 92–93](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=109)).
 
+```mermaid
+flowchart TB
+  subgraph SACB["D1 · SAC: policy trained offline"]
+    direction TB
+    O1["Last 3 observations<br/>+ next 4 reference values"] --> P1["MLP, 2 × 256"] --> U1["5 valve commands at 10 Hz"]
+  end
+  subgraph MPCB["D2 · MPC: optimisation online"]
+    direction TB
+    T2["Target selector<br/>fuel-optimal steady state"] --> Q2["Optimiser over a horizon<br/>Wiener model: linear dynamics + NN"]
+    E2["EKF disturbance estimate"] --> Q2
+    Q2 --> U2["5 valve commands"]
+  end
+```
+
+The two controllers compared in the thesis. SAC does all its computation during training; MPC solves an optimisation at every step on a learned surrogate model.
+{: .caption }
+
 **Head to head** ([Table 5.4](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=114)):
 
 | | IAE $p_{cc}$ | IAE $R_{OF}$ | Max settling | Mean settling | Control effort $\Delta u$ | Vented turbine propellant |
@@ -49,12 +98,87 @@ Both come from the Dresia thesis, Chapter 5 ([PDF pp. 94–115](https://elib.dlr
 | MPC | 54.3 | 1.1 | 3.0 s | 1.5 s | 2.4 | 53.5 kg |
 | SAC | 12.2 | 0.3 | 0.7 s | 0.3 s | 3.9 | 54.4 kg |
 
+```vegalite
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+  "title": {"text": "SAC vs MPC, one panel per metric", "subtitle": "Dresia 2025, Table 5.4. Lower is better in every panel; each panel has its own scale"},
+  "data": {"values": [
+    {"metric": "IAE, chamber pressure", "controller": "MPC", "value": 54.3},
+    {"metric": "IAE, chamber pressure", "controller": "SAC", "value": 12.2},
+    {"metric": "IAE, mixture ratio", "controller": "MPC", "value": 1.1},
+    {"metric": "IAE, mixture ratio", "controller": "SAC", "value": 0.3},
+    {"metric": "Max settling time (s)", "controller": "MPC", "value": 3.0},
+    {"metric": "Max settling time (s)", "controller": "SAC", "value": 0.7},
+    {"metric": "Mean settling time (s)", "controller": "MPC", "value": 1.5},
+    {"metric": "Mean settling time (s)", "controller": "SAC", "value": 0.3},
+    {"metric": "Control effort (valve travel)", "controller": "MPC", "value": 2.4},
+    {"metric": "Control effort (valve travel)", "controller": "SAC", "value": 3.9},
+    {"metric": "Vented turbine propellant (kg)", "controller": "MPC", "value": 53.5},
+    {"metric": "Vented turbine propellant (kg)", "controller": "SAC", "value": 54.4}
+  ]},
+  "facet": {"row": {"field": "metric", "type": "nominal", "title": null,
+    "sort": ["IAE, chamber pressure", "IAE, mixture ratio", "Max settling time (s)", "Mean settling time (s)", "Control effort (valve travel)", "Vented turbine propellant (kg)"],
+    "header": {"labelAngle": 0, "labelAlign": "left", "labelAnchor": "start", "labelOrient": "top", "labelPadding": 2}}},
+  "spec": {
+    "width": 520, "height": 44,
+    "mark": {"type": "bar", "cornerRadiusEnd": 4, "height": 16},
+    "encoding": {
+      "y": {"field": "controller", "type": "nominal", "title": null, "sort": ["SAC", "MPC"]},
+      "x": {"field": "value", "type": "quantitative", "title": null, "axis": {"tickCount": 4}},
+      "color": {"field": "controller", "type": "nominal", "scale": {"domain": ["SAC", "MPC"]}, "legend": {"title": null}},
+      "tooltip": [{"field": "metric"}, {"field": "controller"}, {"field": "value", "format": ".1f"}]
+    }
+  },
+  "resolve": {"scale": {"x": "independent"}}
+}
+```
+
 What the numbers say:
 
 - **SAC is faster.** It works by *overdriving* the valves: for the 50 → 80 bar step it "opens the turbine valves TOV and TFV for approximately 1.1 s beyond the final steady state positions" ([p. 86](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=103)). That is a bang-bang-like transient that this MPC, planning on a smooth data-based model with manually tuned penalties, does not produce. The price is about 60 % more valve motion (3.9 vs 2.4).
 - **MPC is slightly more fuel-efficient** (0.38 % of total propellant).
 - **MPC violates a soft constraint** for 22 steps, by up to 1.2 % of coolant flow ([p. 95](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=112)).
 - **Robustness.** Under a 5 % error in fuel-turbine efficiency, the nominally trained SAC agent degrades to 1.7 % / 1.6 % error. The domain-randomised agent holds 0.3 % / 0.2 %, at the cost of training twice as long (2.9 M vs 1.5 M steps); open loop degrades to 4.7 % / 4.9 % ([Table 5.3](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=108)).
+
+```vegalite
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+  "title": {"text": "Tracking error with a 5 % fuel-turbine efficiency error", "subtitle": "Mean absolute % error on nominal vs perturbed model (Dresia 2025, Table 5.3)"},
+  "data": {"values": [
+    {"output": "Chamber pressure", "controller": "Open-loop sequence", "model": "Nominal model", "mape": 0.3},
+    {"output": "Chamber pressure", "controller": "Open-loop sequence", "model": "5 % efficiency error", "mape": 4.7},
+    {"output": "Chamber pressure", "controller": "SAC, nominal training", "model": "Nominal model", "mape": 0.3},
+    {"output": "Chamber pressure", "controller": "SAC, nominal training", "model": "5 % efficiency error", "mape": 1.7},
+    {"output": "Chamber pressure", "controller": "SAC, domain-randomised", "model": "Nominal model", "mape": 0.4},
+    {"output": "Chamber pressure", "controller": "SAC, domain-randomised", "model": "5 % efficiency error", "mape": 0.3},
+    {"output": "Mixture ratio", "controller": "Open-loop sequence", "model": "Nominal model", "mape": 0.1},
+    {"output": "Mixture ratio", "controller": "Open-loop sequence", "model": "5 % efficiency error", "mape": 4.9},
+    {"output": "Mixture ratio", "controller": "SAC, nominal training", "model": "Nominal model", "mape": 0.1},
+    {"output": "Mixture ratio", "controller": "SAC, nominal training", "model": "5 % efficiency error", "mape": 1.6},
+    {"output": "Mixture ratio", "controller": "SAC, domain-randomised", "model": "Nominal model", "mape": 0.3},
+    {"output": "Mixture ratio", "controller": "SAC, domain-randomised", "model": "5 % efficiency error", "mape": 0.2}
+  ]},
+  "facet": {"column": {"field": "output", "type": "nominal", "title": null, "header": {"labelFontWeight": 600}}},
+  "spec": {
+    "width": 250, "height": 150,
+    "mark": {"type": "bar", "cornerRadiusEnd": 4, "height": 12},
+    "encoding": {
+      "y": {"field": "controller", "type": "nominal", "title": null, "sort": null},
+      "yOffset": {"field": "model", "sort": ["Nominal model", "5 % efficiency error"]},
+      "x": {"field": "mape", "type": "quantitative", "title": "Mean abs. error (%)", "scale": {"domain": [0, 5]}},
+      "color": {"field": "model", "type": "nominal", "scale": {"domain": ["Nominal model", "5 % efficiency error"]}, "legend": {"title": null}},
+      "tooltip": [{"field": "output"}, {"field": "controller"}, {"field": "model"}, {"field": "mape", "title": "error (%)"}]
+    }
+  }
+}
+```
+
+??? info "Table view: Dresia 2025, Table 5.3 (mean absolute % error; training steps)"
+    | Controller | $p_{cc}$, nominal | $R_{OF}$, nominal | $p_{cc}$, 5 % error | $R_{OF}$, 5 % error | Training steps |
+    |---|---|---|---|---|---|
+    | Open-loop sequence | 0.3 | 0.1 | 4.7 | 4.9 | – |
+    | SAC, nominal training | 0.3 | 0.1 | 1.7 | 1.6 | 1.5 M |
+    | SAC, domain-randomised | 0.4 | 0.3 | 0.3 | 0.2 | 2.9 M |
 
 ## 4.3 D3: the hardware controller
 
@@ -70,6 +194,15 @@ This is the only RL controller reported to have closed the loop on the full LUME
 2. Domain randomisation switched on after about 1.9 M steps. Parameters are perturbed by ±1–10 %: valve flow coefficients and speeds, chamber heat transfer and efficiency, turbopump efficiencies, interface pressures and temperatures, sensor filter windows, and valve dead time ([Table A.3](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=165)).
 3. Gaussian sensor noise up to $\sigma = 1.5\,\%$ after about 4.1 M steps ([p. 104](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=121)).
 
+```mermaid
+flowchart TB
+  M["EcosimPro V3 model<br/>calibrated on sub-component tests"] --> N["SAC on the nominal model"]
+  N -- "≈ 1.9 M steps" --> R["+ domain randomisation<br/>±1–10 % parameters, delays"]
+  R -- "≈ 4.1 M steps" --> S["+ sensor noise, σ up to 1.5 %"]
+  S -- "zero-shot" --> H1["Hot fire, run 1<br/>unstable: valve-model error"]
+  H1 -- "valve model corrected,<br/>agent retrained" --> H2["Hot fire, run 2<br/>1.3 % mean error, > 16 s"]
+```
+
 Retraining after a model change takes about 5 days ([p. 118](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=135)).
 
 **Results** ([Table 6.2](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=130)), mean absolute percentage error over the four outputs:
@@ -81,6 +214,30 @@ Retraining after a model change takes about 5 days ([p. 118](https://elib.dlr.de
 | Simulation, randomised, open loop | 3.1 | 5.2 | 4.7 | 4.0 | 4.2 | 9.3 |
 | Hot fire, run 1 | 6.8 | 16.7 | 1.4 | 6.4 | 7.8 | 64.7 |
 | Hot fire, run 2 | 0.7 | 2.7 | 0.8 | 1.1 | **1.3** | 8.5 |
+
+```vegalite
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+  "title": {"text": "Mean tracking error of the hardware controller, by condition", "subtitle": "Mean over four regulated outputs, % (Dresia 2025, Table 6.2). Highlighted: the successful hot fire"},
+  "width": "container", "height": 170,
+  "data": {"values": [
+    {"condition": "Simulation, nominal", "e": 0.4, "hl": "other"},
+    {"condition": "Simulation, randomised, closed loop", "e": 0.5, "hl": "other"},
+    {"condition": "Simulation, randomised, open loop", "e": 4.2, "hl": "other"},
+    {"condition": "Hot fire, run 1", "e": 7.8, "hl": "other"},
+    {"condition": "Hot fire, run 2", "e": 1.3, "hl": "run 2"}
+  ]},
+  "layer": [
+    {"mark": {"type": "bar", "cornerRadiusEnd": 4, "height": 16},
+     "encoding": {"y": {"field": "condition", "type": "nominal", "sort": null, "title": null, "axis": {"labelLimit": 260}},
+       "x": {"field": "e", "type": "quantitative", "title": "Mean absolute error (%)", "scale": {"domain": [0, 8.5]}},
+       "color": {"field": "hl", "type": "nominal", "scale": {"domain": ["other", "run 2"], "range": ["var(--viz-muted)", "var(--viz-s1)"]}, "legend": null},
+       "tooltip": [{"field": "condition"}, {"field": "e", "title": "mean error (%)"}]}},
+    {"mark": {"type": "text", "align": "left", "dx": 5},
+     "encoding": {"y": {"field": "condition", "type": "nominal", "sort": null}, "x": {"field": "e", "type": "quantitative"}, "text": {"field": "e", "format": ".1f"}}}
+  ]
+}
+```
 
 Run 1 was "unstable due to a modeling error in the valve transfer function" ([p. 149](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=166)). Run 2 followed after the valve model was corrected and the agent retrained. Its closed loop started at $t$ = 18 s and lasted "over 16 s" ([p. 117](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=134)). It still showed ±2 % oscillation at 0.5 Hz at the highest load point. The 2.7 % mixture-ratio error largely reflects measurement noise: the thesis attributes the 8.5 % maximum to "large sensor noise", and the real $\sigma$ = 3.0 % exceeded the training noise ([p. 116](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=133)).
 

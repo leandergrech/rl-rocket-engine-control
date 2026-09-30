@@ -2,6 +2,45 @@
 
 The questions are ranked by expected value to the field, times how well they fit my background (sparse noisy sensors, expensive real steps, SB3/Gymnasium tooling, RL4AA), times how soon they could produce a result. Everything here needs the LUMEN Control Challenge environment. None of it needs the real engine. Effort estimates count from the day access is granted, assuming about 50 % of my research time; they are my guesses.
 
+How the questions build on each other. Question 5 produces the wrappers, metrics and baselines the others reuse, so it comes first even though it ranks fifth on value.
+
+```mermaid
+flowchart TB
+  Q5["5 · preview, delays, action design<br/>baseline set"] --> Q3["3 · residual RL on PI"]
+  Q5 --> Q2["2 · model-based RL"]
+  Q5 --> Q4["4 · fault tolerance"]
+  Q3 --> Q7["7 · safe fallback"]
+  Q2 --> Q1["1 · few-shot sim-to-real"]
+  Q1 --> Q6["6 · slow drift"]
+```
+
+```vegalite
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+  "title": {"text": "Estimated effort per question, in rank order", "subtitle": "Months from access, at about half my research time (my estimates; see each section)"},
+  "width": "container", "height": 220,
+  "data": {"values": [
+    {"q": "1 · few-shot sim-to-real", "lo": 3, "hi": 4, "start": "later", "note": "workshop paper; journal version about 6 months"},
+    {"q": "2 · model-based RL", "lo": 2, "hi": 3, "start": "later", "note": "most of it on the ensemble model"},
+    {"q": "3 · residual RL on PI", "lo": 2, "hi": 2, "start": "later", "note": "about 2 months"},
+    {"q": "4 · fault tolerance", "lo": 3, "hi": 5, "start": "later", "note": "risk: two faults may be too easy or too hard"},
+    {"q": "5 · preview, delays, actions", "lo": 1, "hi": 1.5, "start": "start here", "note": "4-6 weeks; builds the shared tooling"},
+    {"q": "6 · slow drift", "lo": 3, "hi": 3, "start": "later", "note": "better done as an extension of question 1"},
+    {"q": "7 · safe fallback", "lo": 2, "hi": 3, "start": "later", "note": "after question 3"}
+  ]},
+  "encoding": {"y": {"field": "q", "type": "nominal", "sort": null, "title": null, "axis": {"labelLimit": 240}}},
+  "layer": [
+    {"mark": {"type": "rule", "strokeWidth": 4, "strokeCap": "round"},
+     "encoding": {"x": {"field": "lo", "type": "quantitative", "title": "Effort (months)", "scale": {"domain": [0, 6]}}, "x2": {"field": "hi"},
+       "color": {"field": "start", "type": "nominal", "scale": {"domain": ["start here", "later"], "range": ["var(--viz-s2)", "var(--viz-s1)"]}, "legend": {"title": null}}}},
+    {"transform": [{"fold": ["lo", "hi"], "as": ["end", "m"]}],
+     "mark": {"type": "point", "filled": true, "size": 80, "stroke": "var(--md-default-bg-color)", "strokeWidth": 2},
+     "encoding": {"x": {"field": "m", "type": "quantitative"}, "color": {"field": "start", "type": "nominal"},
+       "tooltip": [{"field": "q", "title": "question"}, {"field": "lo", "title": "from (months)"}, {"field": "hi", "title": "to (months)"}, {"field": "note"}]}}
+  ]
+}
+```
+
 ## 1. Using the fine-tuning data: few-shot sim-to-real adaptation (test cases 3–4)
 
 **Why it is open.**
@@ -60,6 +99,15 @@ Report tracking error and constraint violations against the amount of target dat
 - A decoupled PI baseline on the 2×2 task: the $R_{OF}$ loop fast, the $p_{cc}$ loop slow, as in [§2.2](02-primer.md#22-mixture-ratio-is-temperature), with gain scheduling over the envelope.
 - A residual SAC whose output is clipped to ±x % valve travel around the PI command.
 - Results on tracking, valve travel (Δu) and constraint violations across test cases 1–5, plus the degradation when the residual is disabled mid-episode.
+
+```mermaid
+flowchart TB
+  E["Tracking error e_t"] --> PI["Decoupled PI<br/>fast R_OF loop, slow p_cc loop,<br/>gain-scheduled"]
+  O["Observation o_t"] --> RES["Residual SAC"]
+  PI -- "u_PI" --> SUM(("+"))
+  RES -- "Δu, clipped to ±x %" --> SUM
+  SUM -- "u = u_PI + Δu" --> V["TFV, TOV"]
+```
 
 Claim to test: residual RL recovers most of pure RL's tracking advantage with a hard bound on how far it can take the valves from a certifiable baseline.
 
@@ -120,6 +168,20 @@ Evaluate on how long tracking stays in tolerance as drift accumulates.
 **Why it is open.** DLR has a detector ([Dauer et al. 2025](https://www.eucass.eu/doi/EUCASS2025-533.pdf)) and PI heritage, but no published closed loop that switches between them. Hardware tests end early for safety reasons ([§5.2](05-limitations.md#52-safety-short-tests-no-guarantees)).
 
 **What a first paper would show.** A supervisor that hands control from the RL policy to a PI fallback when an ensemble-disagreement score crosses a threshold. The payoff is measured against false switches in nominal operation.
+
+```mermaid
+flowchart TB
+  O["Observation o_t"] --> POL["RL policy"]
+  O --> SC["Out-of-capability score<br/>ensemble disagreement"]
+  O --> PI["PI fallback"]
+  SC -- "threshold: 99th percentile<br/>of training scores" --> SW{"Supervisor"}
+  POL --> SW
+  PI --> SW
+  SW --> V["TFV, TOV"]
+```
+
+The threshold rule is the one DLR used for its detector ([Dauer et al. 2025, p. 10](https://www.eucass.eu/doi/EUCASS2025-533.pdf#page=10)); the switching loop is the proposal.
+{: .caption }
 
 **Effort.** 2–3 months after question 3, which provides the fallback.
 

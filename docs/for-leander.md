@@ -14,6 +14,16 @@ You already have the RL. What you lack is the plant. This page maps what carries
 | **Satellite super-resolution (Semablu)** | Virtual sensing and fault detection | Reconstructing a signal from redundant, degraded measurements is what DLR's virtual-sensing work does for faulty engine sensors ([Kurudzija et al. 2024](https://elib.dlr.de/214022/), abstract). This is a weaker link, but it is the one to use if test cases 6–7 need a learned fault detector. |
 | **Teaching (Master's AI/ML)** | Notebooks | Once access exists, the planned notebooks (explore, baseline, first experiment) could double as course material, subject to the challenge licence. |
 
+```mermaid
+flowchart LR
+  C["CERN crystal alignment"] --> DA["Test cases 3–4<br/>sim-to-real adaptation"]
+  Q["Robust quantum-gate control"] --> DA
+  T["TADA air-traffic RL"] --> EV["Evaluation and<br/>action design"]
+  S["Semablu super-resolution"] --> F["Test cases 6–7<br/>fault detection"]
+  R["RL4AA and RL Bootcamp"] --> AUD["Audience and<br/>first contact"]
+  TE["Master's teaching"] --> NB["Notebooks as<br/>course material"]
+```
+
 ## What is new
 
 - **Physics with several clocks.** Chamber pressure answers within fractions of a second. Turbopump speeds take about a second. The fuel side answers through heat soaking into the cooling channels, with settling times of 5–24 s ([Table 4.7](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=91)). If your crystal-alignment objective behaved roughly like a static map from crystal angle to loss signal plus noise, this plant is different: it has memory. Read [§2.5](02-primer.md#25-time-scales-fast-chamber-slow-heat) twice.

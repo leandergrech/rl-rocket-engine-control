@@ -17,6 +17,14 @@ A personal literature review and (pending) codebase for deep reinforcement learn
     - The environment wrapper, baselines and notebooks will be built when access is granted.
     - No stand-in simulator has been written.
 
+<div class="kpi-row">
+  <div class="kpi"><div class="kpi__value">25 kN</div><div class="kpi__label">LOX/methane expander-bleed demonstrator, test bench P8.3</div><div class="kpi__src"><a href="https://www.dlr.de/en/research-and-transfer/featured-topics/reusable-space-transportation/lumen">DLR</a></div></div>
+  <div class="kpi"><div class="kpi__value">2 × 2</div><div class="kpi__label">turbine valves in, chamber pressure and mixture ratio out</div><div class="kpi__src"><a href="https://w3.onera.fr/ailab/sites/default/files/2025-06/abstractsAI4A5thworkshop_external.pdf#page=55">benchmark design</a></div></div>
+  <div class="kpi"><div class="kpi__value">7</div><div class="kpi__label">benchmark test cases, from nominal tracking to faults</div><div class="kpi__src"><a href="https://w3.onera.fr/ailab/sites/default/files/2025-06/abstractsAI4A5thworkshop_external.pdf#page=56">benchmark design</a></div></div>
+  <div class="kpi"><div class="kpi__value">1.3 %</div><div class="kpi__label">mean tracking error of DLR's RL controller on the real engine</div><div class="kpi__src"><a href="https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=130">thesis Table 6.2</a></div></div>
+  <div class="kpi"><div class="kpi__value">0</div><div class="kpi__label">public simulator releases found on 2026-09-30</div><div class="kpi__src"><a href="07-references/#71-search-log-where-the-lumen-control-challenge-simulator-is-not">search log</a></div></div>
+</div>
+
 ## Five things to know before reading further
 
 1. **The task is a coupled 2×2 tracking problem.** Two turbine valves (TFV, TOV) set chamber pressure, i.e. thrust, and mixture ratio, i.e. combustion temperature. Seven benchmark test cases add unknown references, parametric model error, slow drift and faults ([§1](01-problem.md)).

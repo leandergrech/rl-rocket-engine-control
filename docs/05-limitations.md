@@ -12,6 +12,48 @@ Every number below links to its source. Where I state an interpretation rather t
 | Cold-gas chamber pressure SAC, trajectory RMSE | 0.36 bar | 1.15 bar | 3.2× | [Hörger et al. 2024, p. 9](https://elib.dlr.de/207225/1/Final_Acta_Astronautica.pdf#page=9) |
 | 22 N thruster, $p_{cc}$ and $R_{OF}$ controller | — | "Control performance in simulation is better than at the real system" | — | [Hörger et al. 2025](https://elib.dlr.de/220009/) (abstract) |
 
+```vegalite
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+  "title": {"text": "How much worse on hardware than in simulation", "subtitle": "Hardware error ÷ simulation error (my derivation from thesis Table 6.2 and Hörger et al. 2024, p. 9)"},
+  "width": "container", "height": 200,
+  "layer": [
+    {"data": {"values": [
+        {"item": "LUMEN · chamber pressure", "ratio": 1.2, "calc": "0.7 % / 0.6 %"},
+        {"item": "LUMEN · coolant flow", "ratio": 2.2, "calc": "1.1 % / 0.5 %"},
+        {"item": "LUMEN · mean of four outputs", "ratio": 2.6, "calc": "1.3 % / 0.5 %"},
+        {"item": "LUMEN · injection temperature", "ratio": 2.7, "calc": "0.8 % / 0.3 %"},
+        {"item": "Cold-gas rig · trajectory RMSE", "ratio": 3.2, "calc": "1.15 bar / 0.36 bar"},
+        {"item": "LUMEN · mixture ratio", "ratio": 5.4, "calc": "2.7 % / 0.5 %"}]},
+     "layer": [
+       {"mark": {"type": "bar", "cornerRadiusEnd": 4, "height": 16, "color": "var(--viz-s1)"},
+        "encoding": {"y": {"field": "item", "type": "nominal", "sort": null, "title": null, "axis": {"labelLimit": 260}},
+          "x": {"field": "ratio", "type": "quantitative", "title": "Hardware ÷ simulation", "scale": {"domain": [0, 6]}},
+          "tooltip": [{"field": "item"}, {"field": "calc", "title": "hardware / simulation"}, {"field": "ratio", "title": "ratio"}]}},
+       {"mark": {"type": "text", "align": "left", "dx": 5},
+        "encoding": {"y": {"field": "item", "type": "nominal", "sort": null}, "x": {"field": "ratio", "type": "quantitative"}, "text": {"field": "ratio", "format": ".1f"}}}
+     ]},
+    {"data": {"values": [{"x": 1}]},
+     "layer": [
+       {"mark": {"type": "rule", "strokeWidth": 2, "color": "var(--viz-s2)"}, "encoding": {"x": {"field": "x", "type": "quantitative"}}},
+       {"mark": {"type": "text", "align": "left", "dx": 5, "y": -6, "text": "1× = no loss"}, "encoding": {"x": {"field": "x", "type": "quantitative"}}}
+     ]}
+  ]
+}
+```
+
+??? info "Table view: how the ratios are computed"
+    Simulation reference for LUMEN is the domain-randomised closed-loop row of [thesis Table 6.2](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=130); hardware is run 2.
+
+    | Item | Hardware | Simulation | Ratio |
+    |---|---|---|---|
+    | LUMEN chamber pressure | 0.7 % | 0.6 % | 1.2× |
+    | LUMEN coolant flow | 1.1 % | 0.5 % | 2.2× |
+    | LUMEN mean of four outputs | 1.3 % | 0.5 % | 2.6× |
+    | LUMEN injection temperature | 0.8 % | 0.3 % | 2.7× |
+    | Cold-gas rig trajectory RMSE ([Hörger et al. 2024, p. 9](https://elib.dlr.de/207225/1/Final_Acta_Astronautica.pdf#page=9)) | 1.15 bar | 0.36 bar | 3.2× |
+    | LUMEN mixture ratio | 2.7 % | 0.5 % | 5.4× |
+
 Where the gap comes from, according to the authors:
 
 - **Actuator models.** Twice the first hardware deployment failed on valve dynamics.
@@ -26,6 +68,43 @@ Where the gap comes from, according to the authors:
 - **Noise out of distribution.** Real mixture-ratio noise was $\sigma$ = 3.0 %, against a maximum of 1.5 % during training ([p. 116](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=133)).
 - **Unexplained residual.** "It is also not clear why small oscillations of about 0.5 Hz are still present" ([p. 116](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=133)).
 
+```vegalite
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+  "title": {"text": "Model error on the demonstration run vs the randomisation range", "subtitle": "Mean and maximum model error per output (thesis Table 6.3); vertical line: widest randomisation range (Table A.3)"},
+  "width": "container", "height": 170,
+  "layer": [
+    {"data": {"values": [
+        {"output": "Chamber pressure", "mean": 4.1, "max": 8.6},
+        {"output": "Mixture ratio", "mean": 2.4, "max": 7.2},
+        {"output": "Injection temperature", "mean": 3.9, "max": 7.7},
+        {"output": "Coolant flow", "mean": 4.9, "max": 10.6}]},
+     "encoding": {"y": {"field": "output", "type": "nominal", "sort": null, "title": null}},
+     "layer": [
+       {"mark": {"type": "rule", "strokeWidth": 2, "color": "var(--viz-axis)"},
+        "encoding": {"x": {"field": "mean", "type": "quantitative", "title": "Model error (%)", "scale": {"domain": [0, 12]}}, "x2": {"field": "max"}}},
+       {"transform": [{"fold": ["mean", "max"], "as": ["kind", "err"]},
+                      {"calculate": "datum.kind === 'mean' ? 'Mean error' : 'Maximum error'", "as": "measure"}],
+        "mark": {"type": "point", "filled": true, "size": 90, "stroke": "var(--md-default-bg-color)", "strokeWidth": 2},
+        "encoding": {"x": {"field": "err", "type": "quantitative"},
+          "color": {"field": "measure", "type": "nominal", "scale": {"domain": ["Mean error", "Maximum error"], "range": ["var(--viz-s1)", "var(--viz-s2)"]}, "legend": {"title": null}},
+          "tooltip": [{"field": "output"}, {"field": "measure"}, {"field": "err", "title": "error (%)"}]}}
+     ]},
+    {"data": {"values": [{"x": 10}]},
+     "layer": [
+       {"mark": {"type": "rule", "strokeWidth": 2, "color": "var(--viz-ink-2)"}, "encoding": {"x": {"field": "x", "type": "quantitative"}}},
+       {"mark": {"type": "text", "align": "right", "dx": -5, "y": -6, "text": "±10 %: widest randomisation"}, "encoding": {"x": {"field": "x", "type": "quantitative"}}}
+     ]}
+  ]
+}
+```
+
+??? info "Table view: thesis Table 6.3, model errors on hot-fire run 2 (%)"
+    | | $p_{cc}$ | $R_{OF}$ | $T_{LNG}$ | $\dot m_{RC}$ | TFV | TOV | FCV | BPV |
+    |---|---|---|---|---|---|---|---|---|
+    | Mean | 4.1 | 2.4 | 3.9 | 4.9 | 0.4 | 0.8 | 0.5 | 0.3 |
+    | Max | 8.6 | 7.2 | 7.7 | 10.6 | 2.2 | 4.3 | 4.3 | 1.6 |
+
 The positive side, in the author's summary: control was successful "even in the presence of modeling errors of up to 10.6 %" and without fine-tuning ([p. 118](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=135)). The 1.3 % result is a zero-shot transfer. The fine-tuning dataset announced for the benchmark ([RL4AA'25](https://indico.kit.edu/event/4216/contributions/19241/contribution.pdf)) is the obvious lever that DLR's own hardware controller did not use.
 
 ## 5.2 Safety: short tests, no guarantees
@@ -36,6 +115,7 @@ The positive side, in the author's summary: control was successful "even in the 
     - The run shown at the RL Bootcamp 2026 tracked for about 15 s before "a sensor failure" ended it ([livestream](https://www.youtube.com/watch?v=CX8I88Pta_I&t=26200s)).
 
     No published result shows an RL engine controller over a full-duration test or across many tests.
+
 - **No stability or constraint guarantee.**
     - The SAC controller satisfied all constraints in the simulated comparison, where MPC's soft constraints let coolant flow dip for 22 steps ([p. 95](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=112)).
     - That is an empirical result on one trajectory, not a guarantee.
@@ -64,18 +144,53 @@ The positive side, in the author's summary: control was successful "even in the 
     - The plant has fuel-side settling times of 5.4–23.8 s ([Table 4.7](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=91)).
 
     *My inference:* a feed-forward policy cannot recover slow thermal state from 0.15 s of history. It must rely on the extra temperature and pressure channels DLR added to the observation ([eq. 6.2](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=119)). With only TFV/TOV and a user-chosen observation in the 2×2 challenge, that choice becomes the user's problem.
+
 - **Delays.**
     - Sensor filtering: the $p_{cc}$ moving-average window was randomised over 0.05–0.15 s.
     - Valve dead time: 0.03–0.08 s ([Table A.3](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=165)).
 
     At 20 Hz these are 1–3 control steps.
+
 - **Derived, noisy outputs.** $R_{OF}$ is a ratio of two flow-meter readings, so its noise (3.0 %) is ten times that of $p_{cc}$ (0.3 %) ([p. 116](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=133)).
+```vegalite
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+  "title": {"text": "What the policy remembers vs how slowly the plant moves", "subtitle": "Seconds, log scale. Thesis Table 4.7 (settling), Table A.3 (delays), p. 102 (3-step stacking at 20 Hz)"},
+  "width": "container", "height": 190,
+  "data": {"values": [
+    {"item": "Valve dead time", "lo": 0.03, "hi": 0.08, "kind": "Plant and sensors"},
+    {"item": "Sensor filter window, chamber pressure", "lo": 0.05, "hi": 0.15, "kind": "Plant and sensors"},
+    {"item": "Policy history, 3 steps at 20 Hz", "lo": 0.15, "hi": 0.15, "kind": "What the policy sees"},
+    {"item": "Settling after a TOV step", "lo": 0.4, "hi": 0.6, "kind": "Plant and sensors"},
+    {"item": "Settling after a TFV step", "lo": 5.4, "hi": 23.8, "kind": "Plant and sensors"}
+  ]},
+  "encoding": {"y": {"field": "item", "type": "nominal", "sort": null, "title": null, "axis": {"labelLimit": 280}}},
+  "layer": [
+    {"mark": {"type": "rule", "strokeWidth": 4, "strokeCap": "round"},
+     "encoding": {"x": {"field": "lo", "type": "quantitative", "scale": {"type": "log", "domain": [0.02, 40]}, "title": "Time (s, log scale)", "axis": {"values": [0.03, 0.1, 0.3, 1, 3, 10, 30]}}, "x2": {"field": "hi"},
+       "color": {"field": "kind", "type": "nominal", "scale": {"domain": ["Plant and sensors", "What the policy sees"]}, "legend": {"title": null}}}},
+    {"transform": [{"fold": ["lo", "hi"], "as": ["end", "t"]}],
+     "mark": {"type": "point", "filled": true, "size": 70, "stroke": "var(--md-default-bg-color)", "strokeWidth": 2},
+     "encoding": {"x": {"field": "t", "type": "quantitative"}, "color": {"field": "kind", "type": "nominal"},
+       "tooltip": [{"field": "item"}, {"field": "lo", "title": "from (s)"}, {"field": "hi", "title": "to (s)"}]}}
+  ]
+}
+```
+
 - **No preview of the reference.**
     - Without future references in the observation, a policy can only react to a ramp. That is the lag visible in the bootcamp PPO demo, where the speaker attributed it to missing "future reference values" and valve delay ([livestream](https://www.youtube.com/watch?v=CX8I88Pta_I&t=26100s)).
     - With 4 steps of preview (D1 in [§4](04-designs.md)) the thesis reached 0.3 % / 0.1 %.
     - For a vehicle whose thrust demand comes from a guidance loop, preview may be unavailable; the thesis's hardware controller did without it ([p. 102](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=119)).
 
 ## 5.4 Data: minutes of reality, days of simulation
+
+<div class="kpi-row">
+  <div class="kpi"><div class="kpi__value">17</div><div class="kpi__label">ignitions of the whole engine, 2024–2025</div><div class="kpi__src"><a href="https://www.eucass.eu/doi/EUCASS2025-105.pdf#page=4">Kurudzija et al. 2025, p. 4</a></div></div>
+  <div class="kpi"><div class="kpi__value">&gt; 20 min</div><div class="kpi__label">accumulated engine hot-fire time</div><div class="kpi__src"><a href="https://www.eucass.eu/doi/EUCASS2025-105.pdf#page=4">same</a></div></div>
+  <div class="kpi"><div class="kpi__value">&gt; 16 s</div><div class="kpi__label">longest RL closed loop on the engine</div><div class="kpi__src"><a href="https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=134">thesis p. 117</a></div></div>
+  <div class="kpi"><div class="kpi__value">≈ 1 M</div><div class="kpi__label">simulator steps per day on 10 instances</div><div class="kpi__src"><a href="https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=100">thesis p. 83</a></div></div>
+  <div class="kpi"><div class="kpi__value">≈ 5 days</div><div class="kpi__label">to retrain the hardware controller</div><div class="kpi__src"><a href="https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=135">thesis p. 118</a></div></div>
+</div>
 
 - **Real data is scarce.**
     - LUMEN's two engine campaigns (2024, 2025) comprise 17 ignitions and "an accumulated hot-fire test duration of over 20 minutes" ([Kurudzija et al. 2025, p. 4](https://www.eucass.eu/doi/EUCASS2025-105.pdf#page=4)).

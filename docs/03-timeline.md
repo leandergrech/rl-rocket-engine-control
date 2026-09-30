@@ -1,6 +1,346 @@
+---
+hide:
+  - toc
+---
+
 # 3. Timeline 2018–2026
 
 Results relevant to learning-based control of liquid rocket engines, in date order. **Engine** rows are the main line; **adjacent** rows (landing guidance, thrusters, test-bench automation) are included where they shaped methods or show the state of the art next door. Every number links to where it appears; rows marked *A* rest on an abstract only (see [§7](07-references.md)).
+
+```vegalite
+{
+ "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+ "title": {
+  "text": "Every row of the table below, by date and kind of result",
+  "subtitle": "Hover a point for the source row. Dates given only as a year are placed mid-year"
+ },
+ "width": "container",
+ "height": 250,
+ "encoding": {
+  "x": {
+   "field": "date",
+   "type": "temporal",
+   "title": null,
+   "scale": {
+    "domain": [
+     "2018-06-01",
+     "2026-12-31"
+    ]
+   },
+   "axis": {
+    "format": "%Y",
+    "tickCount": {
+     "interval": "year",
+     "step": 1
+    }
+   }
+  },
+  "y": {
+   "field": "lane",
+   "type": "nominal",
+   "sort": [
+    "Engine control, simulation",
+    "Hardware, engine or rig",
+    "Benchmark and infrastructure",
+    "Classical control",
+    "Adjacent fields"
+   ],
+   "title": null,
+   "axis": {
+    "labelLimit": 220
+   }
+  }
+ },
+ "layer": [
+  {
+   "data": {
+    "values": [
+     {
+      "date": "2018-10-20",
+      "when": "2018-10",
+      "lane": "Adjacent fields",
+      "what": "Gaudet et al.: PPO, 6-DoF Mars landing",
+      "result": "landing error < 5 m; 4 % more fuel than optimum"
+     },
+     {
+      "date": "2019-06-01",
+      "when": "2019",
+      "lane": "Classical control",
+      "what": "Pérez-Roca et al.: LPRE control survey",
+      "result": "steady state mostly PID; transients open loop"
+     },
+     {
+      "date": "2019-07-10",
+      "when": "2019-07",
+      "lane": "Classical control",
+      "what": "Pérez-Roca et al.: MPC for transients",
+      "result": "MPC keeps pump-speed bounds that PID and LQR exceed"
+     },
+     {
+      "date": "2020-06-19",
+      "when": "2020-06",
+      "lane": "Engine control, simulation",
+      "what": "Waxenegger-Wilfing et al.: TD3 vs PID, gas-generator model",
+      "result": "IAE 519 (RL) vs 632 (PID)"
+     },
+     {
+      "date": "2020-10-12",
+      "when": "2020-10",
+      "lane": "Hardware, engine or rig",
+      "what": "Waxenegger-Wilfing et al.: hardware-in-the-loop concept",
+      "result": "≈ 250,000 flops per policy inference"
+     },
+     {
+      "date": "2021-03-17",
+      "when": "2021-03",
+      "lane": "Engine control, simulation",
+      "what": "Dresia et al.: SAC on the LUMEN model",
+      "result": "< 2 s load changes vs > 10 s open loop"
+     },
+     {
+      "date": "2021-06-01",
+      "when": "2021",
+      "lane": "Engine control, simulation",
+      "what": "Einicke: RL for pressure and mixture ratio (diploma)",
+      "result": "abstract only"
+     },
+     {
+      "date": "2021-08-01",
+      "when": "2021",
+      "lane": "Hardware, engine or rig",
+      "what": "Hörger et al.: robust RL, 22 N thruster",
+      "result": "basic functionality shown (abstract)"
+     },
+     {
+      "date": "2021-11-07",
+      "when": "2021-11",
+      "lane": "Adjacent fields",
+      "what": "Zou: rocket-recycling, open source",
+      "result": "landing success 14.6 % → 91.7 % by reward redesign"
+     },
+     {
+      "date": "2022-05-09",
+      "when": "2022-05",
+      "lane": "Adjacent fields",
+      "what": "Dresia et al.: FLAME test-bench valve sequences",
+      "result": "pump-inlet pressure within ±200 mbar"
+     },
+     {
+      "date": "2022-05-10",
+      "when": "2022-05",
+      "lane": "Hardware, engine or rig",
+      "what": "Hörger et al.: cold-gas RL test rig",
+      "result": "4 bar set point settles in 0.44 s"
+     },
+     {
+      "date": "2023-01-23",
+      "when": "2023-01",
+      "lane": "Hardware, engine or rig",
+      "what": "Dresia et al.: NN control of the LUMEN turbopump",
+      "result": "> 500 s of test, mean error < 1 %"
+     },
+     {
+      "date": "2024-03-02",
+      "when": "2024-03",
+      "lane": "Hardware, engine or rig",
+      "what": "Hörger et al.: zero-shot cold-gas controller",
+      "result": "RMSE ≤ 0.2 bar over 142 tests"
+     },
+     {
+      "date": "2024-03-15",
+      "when": "2024-03",
+      "lane": "Benchmark and infrastructure",
+      "what": "LUMEN put into operation at P8.3",
+      "result": "25 kN LOX/methane engine"
+     },
+     {
+      "date": "2024-07-21",
+      "when": "2024-07",
+      "lane": "Adjacent fields",
+      "what": "Jiang et al.: RAJS rocket landing",
+      "result": "success 8 % → 97 %"
+     },
+     {
+      "date": "2024-09-27",
+      "when": "2024-09",
+      "lane": "Adjacent fields",
+      "what": "Carradori: meta-RL, 6-DoF landing",
+      "result": "1000/1000 runs meet terminal constraints"
+     },
+     {
+      "date": "2024-10-14",
+      "when": "2024-10",
+      "lane": "Hardware, engine or rig",
+      "what": "Traudt et al.: first LUMEN hot-fire campaign",
+      "result": "4-valve closed loop at 20 Hz; 8 tests"
+     },
+     {
+      "date": "2024-11-01",
+      "when": "2024",
+      "lane": "Adjacent fields",
+      "what": "Urgolo et al.: learned fault monitors",
+      "result": "anomaly vs nominal F1 0.95"
+     },
+     {
+      "date": "2025-01-06",
+      "when": "2025-01",
+      "lane": "Hardware, engine or rig",
+      "what": "Hörger et al.: RL pressure and mixture ratio, 22 N thruster",
+      "result": "RMSE below 0.5 bar (abstract)"
+     },
+     {
+      "date": "2025-02-01",
+      "when": "2025-02",
+      "lane": "Adjacent fields",
+      "what": "Iafrate et al.: DRL first-stage landing",
+      "result": "metadata only"
+     },
+     {
+      "date": "2025-04-04",
+      "when": "2025-04",
+      "lane": "Benchmark and infrastructure",
+      "what": "Benchmark announced at RL4AA'25",
+      "result": "'freely accessible to the RL community'"
+     },
+     {
+      "date": "2025-04-09",
+      "when": "2025-04",
+      "lane": "Hardware, engine or rig",
+      "what": "Dresia thesis: SAC on the real engine",
+      "result": "1.3 % mean error over > 16 s"
+     },
+     {
+      "date": "2025-05-19",
+      "when": "2025-05",
+      "lane": "Benchmark and infrastructure",
+      "what": "Benchmark design: 2×2 task, 7 Gym test cases",
+      "result": "faults based on hot-run data"
+     },
+     {
+      "date": "2025-05-25",
+      "when": "2025-05",
+      "lane": "Engine control, simulation",
+      "what": "Bareiß: hybrid RL + PI (MSc)",
+      "result": "beats pure SAC and static PI (abstract)"
+     },
+     {
+      "date": "2025-06-30",
+      "when": "2025-07",
+      "lane": "Benchmark and infrastructure",
+      "what": "LUMEN model validated on hot fire",
+      "result": "MAPE 2.4 % on chamber pressure"
+     },
+     {
+      "date": "2025-07-02",
+      "when": "2025-07",
+      "lane": "Hardware, engine or rig",
+      "what": "Dauer et al.: out-of-capability detection",
+      "result": "retrained agent held pressure until test ended early"
+     },
+     {
+      "date": "2025-09-22",
+      "when": "2025-09",
+      "lane": "Benchmark and infrastructure",
+      "what": "DX'25 LUMEN diagnosis benchmark",
+      "result": "simulator on request by email"
+     },
+     {
+      "date": "2026-03-31",
+      "when": "2026-03",
+      "lane": "Engine control, simulation",
+      "what": "Matanza et al.: curriculum PPO (poster)",
+      "result": "abstract only"
+     },
+     {
+      "date": "2026-06-11",
+      "when": "2026-06",
+      "lane": "Adjacent fields",
+      "what": "Chaudhary et al.: chance-constrained RL",
+      "result": "28 kg propellant overhead"
+     },
+     {
+      "date": "2026-07-29",
+      "when": "2026-07",
+      "lane": "Benchmark and infrastructure",
+      "what": "LUMEN simulator preprint",
+      "result": "errors below 5 % (abstract)"
+     },
+     {
+      "date": "2026-09-11",
+      "when": "2026-09-11",
+      "lane": "Benchmark and infrastructure",
+      "what": "DLR-RA GitHub organisation created",
+      "result": "empty on 2026-09-30"
+     },
+     {
+      "date": "2026-09-17",
+      "when": "2026-09-17",
+      "lane": "Benchmark and infrastructure",
+      "what": "LUMEN Control Challenge pitched",
+      "result": "not yet public"
+     }
+    ]
+   },
+   "mark": {
+    "type": "point",
+    "filled": true,
+    "size": 90,
+    "color": "var(--viz-s1)",
+    "stroke": "var(--md-default-bg-color)",
+    "strokeWidth": 2
+   },
+   "encoding": {
+    "tooltip": [
+     {
+      "field": "when",
+      "title": "date"
+     },
+     {
+      "field": "what",
+      "title": "result"
+     },
+     {
+      "field": "result",
+      "title": "headline"
+     }
+    ]
+   }
+  },
+  {
+   "data": {
+    "values": [
+     {
+      "date": "2025-04-09",
+      "lane": "Hardware, engine or rig",
+      "t": "1.3 % on the real engine"
+     },
+     {
+      "date": "2026-09-17",
+      "lane": "Benchmark and infrastructure",
+      "t": "Challenge pitched"
+     },
+     {
+      "date": "2024-03-15",
+      "lane": "Benchmark and infrastructure",
+      "t": "LUMEN in operation"
+     }
+    ]
+   },
+   "mark": {
+    "type": "text",
+    "align": "right",
+    "dx": -8,
+    "dy": -11
+   },
+   "encoding": {
+    "text": {
+     "field": "t"
+    }
+   }
+  }
+ ]
+}
+```
 
 | Date | Group | Method | Headline number | Link |
 |---|---|---|---|---|
@@ -39,18 +379,47 @@ Results relevant to learning-based control of liquid rocket engines, in date ord
 
 Affiliations are taken from the title pages of the papers I opened. The Kaiser 2021 Würzburg thesis on RL throttling for landing is omitted because no primary copy could be opened ([§7.4](07-references.md#74-deep-rl-control-at-dlr-lampoldshausen)).
 
+**2018–2022: methods in simulation**
+
 ```mermaid
+---
+config:
+  theme: base
+  themeVariables:
+    fontFamily: Inter, sans-serif
+    cScale0: "rgba(57, 135, 229, 0.22)"
+    cScale1: "rgba(57, 135, 229, 0.34)"
+    cScale2: "rgba(57, 135, 229, 0.22)"
+    cScale3: "rgba(57, 135, 229, 0.34)"
+    cScale4: "rgba(57, 135, 229, 0.22)"
+---
 timeline
-    title Learning-based rocket engine control, 2018-2026
     2018 : 6-DoF landing with PPO (Gaudet et al.)
-    2019 : LPRE control survey - PID dominates : MPC for transients (Perez-Roca et al.)
-    2020 : TD3 beats PID on engine start-up in simulation (DLR) : HIL concept for NN controllers
-    2021 : SAC controls LUMEN model with 6 valves (DLR) : rocket-recycling 2-D landing
-    2022 : FLAME - SAC valve sequences for the P5 bench : cold-gas RL test rig
+    2019 : LPRE control survey, PID dominates : MPC for transients (Pérez-Roca et al.)
+    2020 : TD3 beats PID on a simulated engine start-up (DLR) : HIL concept for NN controllers
+    2021 : SAC controls the LUMEN model with 6 valves (DLR) : rocket-recycling, 2-D landing
+    2022 : FLAME, SAC valve sequences for the P5 bench : cold-gas RL test rig
+```
+
+**2023–2026: hardware and the benchmark**
+
+```mermaid
+---
+config:
+  theme: base
+  themeVariables:
+    fontFamily: Inter, sans-serif
+    cScale0: "rgba(57, 135, 229, 0.22)"
+    cScale1: "rgba(57, 135, 229, 0.34)"
+    cScale2: "rgba(57, 135, 229, 0.22)"
+    cScale3: "rgba(57, 135, 229, 0.34)"
+    cScale4: "rgba(57, 135, 229, 0.22)"
+---
+timeline
     2023 : NN turbopump control on hardware, below 1 % error
-    2024 : LUMEN put into operation at P8.3 (Mar) : zero-shot RL on cold-gas thruster : RAJS 8 to 97 % landing success
-    2025 : Dresia thesis - 1.3 % on the real engine : benchmark announced (RL4AA) and designed (7 test cases) : model validated, MAPE 2.4 % : DX25 LUMEN diagnosis benchmark
-    2026 : curriculum PPO poster (RL4AA26) : LUMEN simulator preprint : LUMEN Control Challenge pitched, not yet public
+    2024 : LUMEN in operation at P8.3 : zero-shot RL on a cold-gas rig : RAJS landing, 8 to 97 % success
+    2025 : Dresia thesis, 1.3 % on the real engine : benchmark announced and designed : model validated, MAPE 2.4 % : DX'25 LUMEN diagnosis benchmark
+    2026 : curriculum PPO poster : LUMEN simulator preprint : Control Challenge pitched, not yet public
 ```
 
 ## Reading the timeline

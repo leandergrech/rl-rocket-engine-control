@@ -8,11 +8,53 @@ Every source used anywhere on this site is listed here, with how far it was veri
 | **A** | Abstract, bibliographic record or metadata only. The full text is paywalled, DLR-internal or behind a bot wall. Only what the abstract says is used. |
 | **U** | Unverified. The source exists according to secondary material, but I could not open a primary copy. Nothing from it is used as fact. |
 
+```vegalite
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+  "title": {"text": "How much of each section rests on full text", "subtitle": "Count of V / A / U tags per section below (a few entries tag two sources)"},
+  "width": "container", "height": 200,
+  "data": {"values": [
+    {"section": "7.2 Challenge and benchmark", "tag": "V · full text", "n": 6}, {"section": "7.2 Challenge and benchmark", "tag": "A · abstract only", "n": 1}, {"section": "7.2 Challenge and benchmark", "tag": "U · unverified", "n": 0},
+    {"section": "7.3 Engine and simulator", "tag": "V · full text", "n": 7}, {"section": "7.3 Engine and simulator", "tag": "A · abstract only", "n": 3}, {"section": "7.3 Engine and simulator", "tag": "U · unverified", "n": 0},
+    {"section": "7.4 DLR deep-RL control", "tag": "V · full text", "n": 11}, {"section": "7.4 DLR deep-RL control", "tag": "A · abstract only", "n": 6}, {"section": "7.4 DLR deep-RL control", "tag": "U · unverified", "n": 1},
+    {"section": "7.5 Safety and diagnosis", "tag": "V · full text", "n": 2}, {"section": "7.5 Safety and diagnosis", "tag": "A · abstract only", "n": 1}, {"section": "7.5 Safety and diagnosis", "tag": "U · unverified", "n": 1},
+    {"section": "7.6 Classical control", "tag": "V · full text", "n": 7}, {"section": "7.6 Classical control", "tag": "A · abstract only", "n": 2}, {"section": "7.6 Classical control", "tag": "U · unverified", "n": 1},
+    {"section": "7.7 Landing RL (adjacent)", "tag": "V · full text", "n": 5}, {"section": "7.7 Landing RL (adjacent)", "tag": "A · abstract only", "n": 1}, {"section": "7.7 Landing RL (adjacent)", "tag": "U · unverified", "n": 0},
+    {"section": "7.8 On-ramp context", "tag": "V · full text", "n": 1}, {"section": "7.8 On-ramp context", "tag": "A · abstract only", "n": 1}, {"section": "7.8 On-ramp context", "tag": "U · unverified", "n": 0}
+  ]},
+  "transform": [{"calculate": "indexof(['V · full text', 'A · abstract only', 'U · unverified'], datum.tag)", "as": "o"}],
+  "mark": {"type": "bar", "height": 16, "stroke": "var(--md-default-bg-color)", "strokeWidth": 2},
+  "encoding": {
+    "y": {"field": "section", "type": "nominal", "sort": null, "title": null, "axis": {"labelLimit": 240}},
+    "x": {"field": "n", "type": "quantitative", "stack": "zero", "title": "Sources", "axis": {"tickMinStep": 1}},
+    "color": {"field": "tag", "type": "ordinal", "scale": {"domain": ["V · full text", "A · abstract only", "U · unverified"], "range": ["var(--viz-ord-1)", "var(--viz-ord-2)", "var(--viz-ord-3)"]}, "legend": {"title": null}},
+    "order": {"field": "o", "sort": "ascending"},
+    "tooltip": [{"field": "section"}, {"field": "tag"}, {"field": "n", "title": "sources"}]
+  }
+}
+```
+
 PDF links carry a `#page=N` anchor where a specific page is cited. N is the PDF page index, which for the Dresia thesis is the printed page + 17.
 
 ## 7.1 Search log: where the LUMEN Control Challenge simulator is not
 
 The search ran on 2026-09-30 from 16:08 to 16:38 UTC (30 min of direct searching). Six subagents opened and summarised literature sources in parallel. The goal was the public simulator and evaluation service announced on the "LUMEN Control Challenge" slide.
+
+```mermaid
+flowchart LR
+  Q["Where is the LUMEN<br/>Control Challenge simulator?"]
+  Q --> C1["Code hosts<br/>GitHub search, 11 DLR orgs,<br/>author accounts, GitLab"]
+  C1 --> RA["DLR-RA org<br/>created 2026-09-11, empty"]
+  C1 --> DX["DX'25 LUMEN benchmark<br/>simulator on request by email"]
+  Q --> V1["Video and events<br/>3 streams, bootcamp sites,<br/>3 Indico events"]
+  Q --> A1["Archives<br/>Zenodo, elib, arXiv,<br/>OpenAlex, Crossref, ORCID"]
+  Q --> P1["Packages<br/>PyPI, Hugging Face"]
+  Q --> D1["DLR web pages"]
+  V1 --> N["Nothing public"]
+  A1 --> N
+  P1 --> N
+  D1 --> N
+```
 
 | # | Place | What was checked | Result |
 |---|---|---|---|
@@ -201,6 +243,10 @@ The crystal-alignment work at CERN (TWOCRYST/AICRYSCON) is described from Leande
 | Python | 3.10.12 | `.venv` |
 | mkdocs / mkdocs-material / pymdown-extensions / Markdown | 1.6.1 / 9.7.7 / 12.1 / 3.10.3 | Docs site |
 | pytest | 9.1.1 | Tests |
+| Vega / Vega-Lite / vega-embed | 6.4.0 / 6.4.3 / 7.3.0 | Charts, loaded from jsDelivr at page load |
+| Mermaid | 11.x (loaded by Material from unpkg) | Diagrams |
+| MathJax | 3.x (jsDelivr) | Equations |
+| Inter, Space Grotesk, JetBrains Mono | Google Fonts | Site typography |
 | PyYAML | 6.0.3 | Reads `mkdocs.yml` in the docs test |
 | yt-dlp | 2026.08.19 | Used once, in a scratch environment, to fetch the livestream auto-captions; not a dependency |
 
@@ -208,6 +254,7 @@ The crystal-alignment work at CERN (TWOCRYST/AICRYSCON) is described from Leande
 
 - **This repository:** MIT (see `LICENSE`).
 - **Python dependencies (dev only; the package itself has none):** MkDocs (BSD-2-Clause), Material for MkDocs (MIT), pymdown-extensions (MIT), Markdown (BSD-3-Clause), PyYAML (MIT), pytest (MIT). Read from the installed package metadata.
+- **Front-end libraries loaded by the site (not redistributed):** Vega, Vega-Lite and vega-embed (BSD-3-Clause, per their npm metadata), Mermaid (MIT), MathJax (Apache-2.0). Fonts Inter, Space Grotesk and JetBrains Mono are served by Google Fonts under the SIL Open Font License (each has an `OFL.txt` in the [google/fonts](https://github.com/google/fonts/tree/main/ofl) repository).
 - **Documents cited, not redistributed:** Dresia thesis CC BY-NC 4.0; Hörger et al. 2024 CC BY-NC-ND 4.0; DX 2024 and DX'25 papers CC BY 4.0; rocket-recycling CC BY-NC-SA 4.0.
 - **Simulation tools behind the benchmark:** EcosimPro is commercial software by Empresarios Agrupados Internacional (EAI); ESPSS is ESA-proprietary and needs "prior approval from ESA" ([brochure](https://www.ecosimpro.com/wp-content/uploads/2015/02/ecosimpro_brochure_library_espss.pdf)). The challenge's licence terms are unknown until DLR publishes them.
 - No third-party code, data or figures are redistributed in this repository.

@@ -45,24 +45,45 @@ Pressure-fed engines push propellant out of pressurised tanks; that caps chamber
 LUMEN is an **expander-bleed** engine ([thesis p. 54](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=71)): liquid methane is pumped through channels in the chamber wall in counter-flow, picks up heat, and part of this warm methane drives both turbines and is then vented unburned (an "open" cycle); the rest is remixed and injected. The two turbopumps run in parallel and independently. Simplified from [thesis Fig. 4.1](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=71):
 
 ```mermaid
-flowchart LR
-  LNG[LNG feed] --> FP[Fuel pump]
-  FP --> RC[Cooling channels in chamber wall]
-  FP -- FCV bypass --> MIX[Fuel mixer]
-  RC --> H{warm methane}
-  H -- TFV --> FT[Fuel turbine] --> V1((vent))
-  H -- TOV --> OT[Oxidiser turbine] --> V2((vent))
-  H -- XCV --> MIX
-  H -- BPV --> V3((vent))
-  MIX -- MFV --> INJ[Injector]
-  LOX[LOX feed] --> OP[Oxidiser pump]
-  OP -- OCV / MOV --> INJ
-  INJ --> MCC[Combustion chamber and nozzle]
-  FT -. shaft .- FP
-  OT -. shaft .- OP
+flowchart TB
+  LNG["LNG feed"] --> FP["Fuel pump"] --> RC["Cooling channels<br/>in chamber wall"] --> H{"Warm<br/>methane"}
+  LOX["LOX feed"] --> OP["Oxidiser pump"]
+  H -- TFV --> FT["Fuel turbine<br/>drives fuel pump"]
+  H -- TOV --> OT["Oxidiser turbine<br/>drives oxidiser pump"]
+  FT --> V((vent))
+  OT --> V
+  H -- BPV --> V
+  H -- "XCV, via mixer" --> INJ["Injector"]
+  FP -- "FCV bypass" --> INJ
+  OP -- "OCV, MOV" --> INJ
+  INJ --> MCC["Combustion chamber<br/>and nozzle"]
+  linkStyle 4,5 stroke-width:3.5px
 ```
 
+Thick arrows: the two valves the benchmark actuates. Each turbine shares a shaft with its pump. On/off valves other than MOV are omitted.
+{: .caption }
+
 The control consequence is the one the benchmark is built on: **the two turbine valves TFV and TOV set how much warm methane reaches each turbine, hence each pump's speed, hence each propellant flow.** Opening both raises $p_{cc}$; opening them asymmetrically shifts $R_{OF}$ ([thesis p. 56](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=73)). The other four continuous valves (FCV fuel-bypass, BPV vent, XCV mixer, OCV oxidiser) shape cooling flow, injection temperature and oxidiser flow; they are actuated in DLR's own 4- and 5-valve controllers but, as far as the published benchmark design says, not in the 2×2 task.
+
+Why the two actions couple, and why one of them is slow: both turbines draw on the same heat budget.
+
+```mermaid
+flowchart TB
+  HEAT["Warm-methane enthalpy<br/>set by wall heat flux and coolant flow"]
+  TFV["TFV opening"] --> FT["Fuel turbine power"]
+  TOV["TOV opening"] --> OT["Oxidiser turbine power"]
+  HEAT -. slow .-> FT
+  HEAT -. slow .-> OT
+  FT --> FPS["Fuel pump speed"] --> MF["Fuel flow"]
+  OT --> OPS["Oxidiser pump speed"] --> MO["Oxidiser flow"]
+  MF --> PCC["Chamber pressure<br/>sum of flows"]
+  MO --> PCC
+  MF --> ROF["Mixture ratio<br/>ratio of flows"]
+  MO --> ROF
+```
+
+Solid arrows act within about a second. The heat budget closes a slow loop: chamber pressure and coolant flow set the wall heat flux, which sets the enthalpy both turbines run on, over seconds to tens of seconds. Valve roles from [thesis p. 56](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=73), time scales from [Table 4.7](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=91).
+{: .caption }
 
 ### Turbopump power balance
 
@@ -95,6 +116,46 @@ Three layers of dynamics sit on top of each other:
 | Fuel injection temperature | mean 12.1 s settling | same |
 | Expander-cycle start-up to equilibrium | up to 15 s | [thesis p. 10](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=27) |
 
+The full step-response table shows where the slow channel is: every output answers a TFV step in 5–24 s, almost everything else within a few seconds.
+
+```vegalite
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+  "title": {"text": "Settling time after a 10 % valve step", "subtitle": "Seconds; blank cell = no response. Values of 15 s and more labelled. Dresia 2025, Table 4.7"},
+  "width": "container", "height": 230,
+  "data": {"values": [
+    {"valve": "TOV", "output": "LNG flow", "ts": 0.5}, {"valve": "TOV", "output": "LOX flow", "ts": 0.5}, {"valve": "TOV", "output": "Coolant flow", "ts": 0.5}, {"valve": "TOV", "output": "Chamber pressure", "ts": 0.4}, {"valve": "TOV", "output": "Mixture ratio", "ts": 0.6},
+    {"valve": "TFV", "output": "LNG flow", "ts": 15.5}, {"valve": "TFV", "output": "LOX flow", "ts": 19.5}, {"valve": "TFV", "output": "Coolant flow", "ts": 14.9}, {"valve": "TFV", "output": "Chamber pressure", "ts": 19.3}, {"valve": "TFV", "output": "Mixture ratio", "ts": 5.4}, {"valve": "TFV", "output": "Injection temp.", "ts": 23.8},
+    {"valve": "FCV", "output": "LOX flow", "ts": 3.4}, {"valve": "FCV", "output": "Coolant flow", "ts": 0.5}, {"valve": "FCV", "output": "Chamber pressure", "ts": 1.5}, {"valve": "FCV", "output": "Mixture ratio", "ts": 4.4}, {"valve": "FCV", "output": "Injection temp.", "ts": 10.0},
+    {"valve": "BPV", "output": "LNG flow", "ts": 1.4}, {"valve": "BPV", "output": "LOX flow", "ts": 7.4}, {"valve": "BPV", "output": "Coolant flow", "ts": 1.2}, {"valve": "BPV", "output": "Chamber pressure", "ts": 4.7}, {"valve": "BPV", "output": "Mixture ratio", "ts": 3.6}, {"valve": "BPV", "output": "Injection temp.", "ts": 18.9},
+    {"valve": "OCV", "output": "LOX flow", "ts": 0.3}, {"valve": "OCV", "output": "Chamber pressure", "ts": 0.3}, {"valve": "OCV", "output": "Mixture ratio", "ts": 0.2}, {"valve": "OCV", "output": "Injection temp.", "ts": 4.7},
+    {"valve": "XCV", "output": "LNG flow", "ts": 0.6}, {"valve": "XCV", "output": "LOX flow", "ts": 0.4}, {"valve": "XCV", "output": "Coolant flow", "ts": 0.6}, {"valve": "XCV", "output": "Chamber pressure", "ts": 0.5}, {"valve": "XCV", "output": "Mixture ratio", "ts": 0.6}, {"valve": "XCV", "output": "Injection temp.", "ts": 3.1}
+  ]},
+  "encoding": {
+    "x": {"field": "valve", "type": "nominal", "sort": ["TOV", "TFV", "FCV", "BPV", "OCV", "XCV"], "title": "Valve stepped", "axis": {"orient": "top", "labelAngle": 0}, "scale": {"paddingInner": 0.06}},
+    "y": {"field": "output", "type": "nominal", "sort": ["LNG flow", "LOX flow", "Coolant flow", "Chamber pressure", "Mixture ratio", "Injection temp."], "title": null, "scale": {"paddingInner": 0.06}}
+  },
+  "layer": [
+    {"mark": {"type": "rect", "cornerRadius": 2},
+     "encoding": {"color": {"field": "ts", "type": "quantitative", "title": "Settling time (s)", "scale": {"type": "sqrt"}, "legend": {"orient": "right", "gradientLength": 150}},
+       "tooltip": [{"field": "valve"}, {"field": "output"}, {"field": "ts", "title": "settling (s)"}]}},
+    {"transform": [{"filter": "datum.ts >= 15"}],
+     "mark": {"type": "text", "color": "var(--viz-seq-label)", "fontWeight": 600},
+     "encoding": {"text": {"field": "ts", "format": ".1f"}}}
+  ]
+}
+```
+
+??? info "Table view: settling time in seconds (Dresia 2025, Table 4.7)"
+    | Output \ valve | TOV | TFV | FCV | BPV | OCV | XCV |
+    |---|---|---|---|---|---|---|
+    | LNG flow | 0.5 | 15.5 | – | 1.4 | – | 0.6 |
+    | LOX flow | 0.5 | 19.5 | 3.4 | 7.4 | 0.3 | 0.4 |
+    | Coolant flow | 0.5 | 14.9 | 0.5 | 1.2 | – | 0.6 |
+    | Chamber pressure | 0.4 | 19.3 | 1.5 | 4.7 | 0.3 | 0.5 |
+    | Mixture ratio | 0.6 | 5.4 | 4.4 | 3.6 | 0.2 | 0.6 |
+    | Injection temperature | – | 23.8 | 10.0 | 18.9 | 4.7 | 3.1 |
+
 The TFV–TOV asymmetry matters for the 2×2 task: one action channel acts within a second, the other through the thermal loop over tens of seconds. The thesis also notes that some engines are **non-minimum phase**: thrust can first drop when a valve opens because a fast process with small gain precedes a slow process with large gain ([p. 20](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=37)). For RL this means short horizons and myopic discounting ($\gamma$ = 0.9 at 10–20 Hz is an effective horizon of 0.5–1 s) lean heavily on the observation containing enough history, which DLR provides by stacking the last 3 observations ([thesis p. 81](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=98)).
 
 ## 2.6 What the constraints protect
@@ -115,11 +176,45 @@ LUMEN carries 40 thermocouples and 62 static and dynamic pressure sensors ([thes
 - $R_{OF}$ is not measured; it is a ratio of two flow measurements, so its noise is much larger than that of $p_{cc}$: measured steady-state $\sigma$ of 3.0 % vs 0.3 % on the real engine, and the 3.0 % exceeded the 1.5 % maximum injected during training ([thesis p. 116](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=133)).
 - Sensors have their own time constants and filtering; DLR modelled a moving-average window on $p_{cc}$ and randomised it over 0.05–0.15 s ([Table A.3](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=165)).
 
+```vegalite
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+  "title": {"text": "Measured sensor noise on the real engine", "subtitle": "Steady-state standard deviation, % of value (Dresia 2025, Fig. 6.11). Orange line: most noise injected during training"},
+  "width": "container", "height": 150,
+  "layer": [
+    {"data": {"values": [{"signal": "Mixture ratio", "sigma": 3.0}, {"signal": "Coolant flow", "sigma": 0.5}, {"signal": "Chamber pressure", "sigma": 0.3}, {"signal": "Injection temperature", "sigma": 0.1}]},
+     "layer": [
+       {"mark": {"type": "bar", "cornerRadiusEnd": 4, "height": 16, "color": "var(--viz-s1)"},
+        "encoding": {"y": {"field": "signal", "type": "nominal", "sort": null, "title": null},
+          "x": {"field": "sigma", "type": "quantitative", "title": "Standard deviation (%)", "scale": {"domain": [0, 3.5]}, "axis": {"tickCount": 4}},
+          "tooltip": [{"field": "signal"}, {"field": "sigma", "title": "sigma (%)"}]}},
+       {"mark": {"type": "text", "align": "left", "dx": 5},
+        "encoding": {"y": {"field": "signal", "type": "nominal", "sort": null}, "x": {"field": "sigma", "type": "quantitative"}, "text": {"field": "sigma", "format": ".1f"}}}
+     ]},
+    {"data": {"values": [{"x": 1.5}]},
+     "layer": [
+       {"mark": {"type": "rule", "strokeWidth": 2, "color": "var(--viz-s2)"}, "encoding": {"x": {"field": "x", "type": "quantitative"}}},
+       {"mark": {"type": "text", "align": "left", "dx": 5, "y": -6, "text": "training maximum, 1.5 %"}, "encoding": {"x": {"field": "x", "type": "quantitative"}}}
+     ]}
+  ]
+}
+```
+
 This is the "sparse, noisy, delayed" setting you know from beamline instrumentation, with the difference that here the noisiest channel ($R_{OF}$) is also the one tied to the fastest safety constraint.
 
 ## 2.8 What a hot-fire test looks like
 
 A test is a scripted sequence ([thesis p. 9–10](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=26)): chill-down of lines and pumps, ignition, open-loop ramp-up to a stable point, optional closed-loop phase, scripted shutdown. Closed loop is only handed over once pressures and flows are established; in DLR's two RL hardware tests the first 15 s and 18 s were open-loop ([Dauer et al. 2025, Fig. 4](https://www.eucass.eu/doi/EUCASS2025-533.pdf#page=8)). Real data is scarce: across the 2024 and 2025 engine campaigns LUMEN had 17 ignitions and "an accumulated hot-fire test duration of over 20 minutes" ([Kurudzija et al. 2025, p. 4](https://www.eucass.eu/doi/EUCASS2025-105.pdf#page=4)). The successful RL hardware run was "over 16 s" of closed loop ([thesis p. 117](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=134)); the run shown at the RL Bootcamp 2026 tracked for about 15 s before a sensor failure ended it ([livestream, §7.2](07-references.md#72-lumen-control-challenge-and-benchmark)). In RL terms, the real environment offers on the order of minutes of interaction per year, with episode termination controlled by safety logic you do not own.
+
+```mermaid
+flowchart LR
+  A["Chill-down"] --> B["Ignition"] --> C["Open-loop<br/>ramp-up"] --> D["RL closed loop"] --> E["Shutdown"]
+  C -. redline .-> X["Safe shutdown"]
+  D -. "redline, sensor fault" .-> X
+```
+
+One hot-fire test as an RL episode. In DLR's RL tests the open-loop ramp-up took 15–18 s and the best closed-loop phase lasted over 16 s. Only the closed-loop block is the agent's; everything else is scripted by the test team.
+{: .caption }
 
 ## 2.9 How the simulator is built and how good it is
 
@@ -129,9 +224,43 @@ The LUMEN model is written in EcosimPro (a commercial differential-algebraic mod
 |---|---|---|
 | Chamber pressure | 2.4 % | 3.3 % (2.4 bar) |
 | Mixture ratio | 3.5 % | 5.2 % (0.2) |
-| Fuel / oxidiser pump outlet pressure | 2.8 % / 4.1 % | 4.8 % / 7.4 % |
+| Fuel pump outlet pressure | 2.8 % | 4.8 % (5.2 bar) |
+| Oxidiser pump outlet pressure | 4.1 % | 7.4 % (3.2 bar) |
 | Fuel injection temperature | 1.9 % | 4.8 % (15.1 K) |
-| Turbopump speeds (FTP / OTP) | 1.5 % / 1.8 % | 3.1 % / 2.6 % |
+| Cooling-channel outlet temperature | 2.1 % | 6.0 % (25.4 K) |
+| Turbine inlet temperature | 2.0 % | 4.0 % (23.2 K) |
+| Fuel turbopump speed | 1.5 % | 3.1 % (1292 rpm) |
+| Oxidiser turbopump speed | 1.8 % | 2.6 % (684 rpm) |
+
+```vegalite
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+  "title": {"text": "LUMEN model against hot-fire data", "subtitle": "Validated EcosimPro model on one post-start-up test run (Kurudzija et al. 2025, Table 2)"},
+  "width": "container", "height": 270,
+  "data": {"values": [
+    {"q": "Chamber pressure", "mape": 2.4, "worst": 3.3},
+    {"q": "Mixture ratio", "mape": 3.5, "worst": 5.2},
+    {"q": "Fuel pump outlet pressure", "mape": 2.8, "worst": 4.8},
+    {"q": "Oxidiser pump outlet pressure", "mape": 4.1, "worst": 7.4},
+    {"q": "Fuel injection temperature", "mape": 1.9, "worst": 4.8},
+    {"q": "Cooling-channel outlet temperature", "mape": 2.1, "worst": 6.0},
+    {"q": "Turbine inlet temperature", "mape": 2.0, "worst": 4.0},
+    {"q": "Fuel turbopump speed", "mape": 1.5, "worst": 3.1},
+    {"q": "Oxidiser turbopump speed", "mape": 1.8, "worst": 2.6}
+  ]},
+  "encoding": {"y": {"field": "q", "type": "nominal", "sort": null, "title": null, "axis": {"labelLimit": 260}}},
+  "layer": [
+    {"mark": {"type": "rule", "strokeWidth": 2, "color": "var(--viz-axis)"},
+     "encoding": {"x": {"field": "mape", "type": "quantitative", "title": "Error (%)", "scale": {"domain": [0, 8]}, "axis": {"tickCount": 8}}, "x2": {"field": "worst"}}},
+    {"transform": [{"fold": ["mape", "worst"], "as": ["kind", "err"]},
+                   {"calculate": "datum.kind === 'mape' ? 'MAPE over the run' : 'Worst steady-state point'", "as": "measure"}],
+     "mark": {"type": "point", "filled": true, "size": 90, "stroke": "var(--md-default-bg-color)", "strokeWidth": 2},
+     "encoding": {"x": {"field": "err", "type": "quantitative"},
+       "color": {"field": "measure", "type": "nominal", "scale": {"domain": ["MAPE over the run", "Worst steady-state point"]}, "legend": {"title": null, "labelLimit": 300}},
+       "tooltip": [{"field": "q", "title": "quantity"}, {"field": "measure"}, {"field": "err", "title": "error (%)"}]}}
+  ]
+}
+```
 
 On the specific run used for the RL hardware demonstration, model–experiment errors were larger: mean 4.1 % on $p_{cc}$, 4.9 % on coolant flow, maximum 10.6 % ([thesis Table 6.3](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=131)). A 2026 preprint describes a "representative upper-stage rocket engine based on the LUMEN" model with errors "below 5 % over the full operational envelope" ([Kurudzija et al. 2026](https://doi.org/10.2139/ssrn.6806858), abstract only) — plausibly the generalised simulator behind the challenge. ESPSS itself is ESA property: "Any entity interested in using ESPSS needs prior approval from ESA" ([EcosimPro brochure](https://www.ecosimpro.com/wp-content/uploads/2015/02/ecosimpro_brochure_library_espss.pdf)). My inference, not DLR's statement: this, and not just DLR's own IP, is the likeliest source of the "legal issues" mentioned at the bootcamp, and the reason the challenge promises a *generalised* model plus a remote evaluation service rather than the calibrated EcosimPro model itself.
 

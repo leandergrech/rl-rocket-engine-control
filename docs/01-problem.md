@@ -10,11 +10,57 @@ LUMEN is a 25 kN liquid-oxygen / liquefied-natural-gas (LOX/LNG) engine with an 
 - **TFV** (turbine fuel valve) and **TOV** (turbine oxidiser valve).
 - "Opening both valves symmetrically increases the combustion chamber pressure, while opening TFV and TOV asymmetrically adjusts the mixture ratio" ([thesis p. 56](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=73)).
 
+```vegalite
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+  "title": {"text": "Where LUMEN operates", "subtitle": "Envelope and nominal point: thesis Table 4.1. RL hot-fire range: thesis p. 99. Mixture-ratio constraint: thesis Table 5.1"},
+  "width": "container", "height": 250,
+  "encoding": {
+    "x": {"type": "quantitative", "scale": {"domain": [30, 85], "nice": false}, "title": "Chamber pressure (bar)"},
+    "y": {"type": "quantitative", "scale": {"domain": [2.4, 4.1], "nice": false}, "title": "Mixture ratio (–)"}
+  },
+  "layer": [
+    {"data": {"values": [{"x": 30, "x2": 85, "y": 2.5, "y2": 4.0, "what": "Mixture-ratio constraint 2.5–4.0"}]},
+     "mark": {"type": "rect", "color": "var(--viz-grid)", "opacity": 0.7, "cornerRadius": 0},
+     "encoding": {"x": {"field": "x"}, "x2": {"field": "x2"}, "y": {"field": "y"}, "y2": {"field": "y2"}, "tooltip": [{"field": "what", "title": "region"}]}},
+    {"data": {"values": [{"x": 35, "x2": 80, "y": 3.0, "y2": 3.8, "what": "Operating envelope: 35–80 bar, 3.0–3.8 (58–133 % thrust)"}]},
+     "mark": {"type": "rect", "color": "var(--viz-s1)", "fillOpacity": 0.1, "stroke": "var(--viz-s1)", "strokeWidth": 2, "cornerRadius": 0},
+     "encoding": {"x": {"field": "x"}, "x2": {"field": "x2"}, "y": {"field": "y"}, "y2": {"field": "y2"}, "tooltip": [{"field": "what", "title": "region"}]}},
+    {"data": {"values": [{"x": 40, "x2": 60, "y": 3.0, "what": "RL hot-fire test range: 40–60 bar at mixture ratio 3.0"}]},
+     "mark": {"type": "rule", "color": "var(--viz-s2)", "strokeWidth": 5, "strokeCap": "round"},
+     "encoding": {"x": {"field": "x"}, "x2": {"field": "x2"}, "y": {"field": "y"}, "tooltip": [{"field": "what", "title": "range"}]}},
+    {"data": {"values": [{"x": 60, "y": 3.4, "what": "Nominal point: 60 bar, 3.4"}]},
+     "mark": {"type": "point", "filled": true, "size": 120, "color": "var(--viz-s1)", "stroke": "var(--md-default-bg-color)", "strokeWidth": 2},
+     "encoding": {"x": {"field": "x"}, "y": {"field": "y"}, "tooltip": [{"field": "what", "title": "point"}]}},
+    {"data": {"values": [
+        {"x": 61.8, "y": 3.4, "t": "Nominal 60 bar, 3.4"},
+        {"x": 36, "y": 3.72, "t": "Operating envelope"},
+        {"x": 40, "y": 2.88, "t": "RL hot-fire test range"},
+        {"x": 31, "y": 3.94, "t": "Mixture-ratio constraint"}]},
+     "mark": {"type": "text", "align": "left", "baseline": "middle"},
+     "encoding": {"x": {"field": "x"}, "y": {"field": "y"}, "text": {"field": "t"}}}
+  ]
+}
+```
+
 Section [2](02-primer.md) explains the physics.
 
 ## 1.2 Formal statement
 
 The benchmark is best read as a **partially observed, parametrised MDP family**. One nominal simulator plus perturbations produces seven test cases.
+
+```mermaid
+flowchart TB
+  REF["Reference r_t: p_cc, R_OF"] --> POL["Policy π"]
+  POL -- "a_t: TFV, TOV commands" --> VAL["Valves<br/>dead time 30–80 ms"]
+  PERT["Test-case perturbations<br/>θ parameter error (3–5), φ faults (6–7)"] -.-> ENG
+  VAL --> ENG["Engine f(θ, φ)<br/>EcosimPro / ESPSS"]
+  ENG --> SEN["Sensors<br/>noise, filtering"]
+  SEN -- "o_t, user-defined" --> POL
+```
+
+The benchmark as a control loop. The dotted input is what the test cases perturb; the agent sees only $o_t$, and constraint violations enter through the reward or trip a redline.
+{: .caption }
 
 **Latent state.** $x_t \in \mathbb{R}^n$ is the full state of the EcosimPro/ESPSS differential-algebraic model. It includes:
 
@@ -91,6 +137,21 @@ With only TFV and TOV actuated, the other valves (FCV, BPV, OCV, XCV) are presum
 ## 1.3 The seven test cases as RL problem classes
 
 The benchmark design lists seven test cases, each a Gym environment ([AI4Aerospace abstract p. 56](https://w3.onera.fr/ailab/sites/default/files/2025-06/abstractsAI4A5thworkshop_external.pdf#page=56)). The right-hand column is my reading of each in standard RL terms.
+
+```mermaid
+flowchart LR
+  NOM["Nominal simulator"] --> TR["Tracking"]
+  NOM --> DA["Parametric error θ"]
+  NOM --> DR["Slow drift θ(t)"]
+  NOM --> FA["Faults φ<br/>from hot-run data"]
+  TR --> T1["1 · reference known"]
+  TR --> T2["2 · reference unknown"]
+  DA --> T3["3 · error prior known"]
+  DA --> T4["4 · nothing known"]
+  DR --> T5["5 · ageing within episode"]
+  FA --> T6["6 · fault flag given"]
+  FA --> T7["7 · no flag"]
+```
 
 | # | Benchmark description | What it is in RL terms |
 |---|---|---|
