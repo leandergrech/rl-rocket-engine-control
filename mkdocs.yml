@@ -1,0 +1,55 @@
+site_name: RL for rocket engine control
+site_description: A personal literature review and codebase for deep-RL control of liquid-propellant rocket engines, anchored on DLR's LUMEN Control Challenge
+site_author: Leander Grech
+site_url: https://leandergrech.github.io/rl-rocket-engine-control/
+repo_url: https://github.com/leandergrech/rl-rocket-engine-control
+repo_name: leandergrech/rl-rocket-engine-control
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+    - search.highlight
+  palette:
+    - scheme: default
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+nav:
+  - Home: index.md
+  - For Leander: for-leander.md
+  - 1. The control problem: 01-problem.md
+  - 2. Domain primer: 02-primer.md
+  - 3. Timeline 2018-2026: 03-timeline.md
+  - 4. Solution designs: 04-designs.md
+  - 5. Limitations: 05-limitations.md
+  - 6. Open questions: 06-open-questions.md
+  - 7. References: 07-references.md
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - footnotes
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js

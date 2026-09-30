@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rl_rocket_engine"
+version = "0.0.1"
+description = "Deep-RL control of liquid-propellant rocket engines, anchored on DLR's LUMEN Control Challenge"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [{name = "Leander Grech"}]
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.24",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7",
+    "mkdocs-material>=9.5",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
