@@ -23,6 +23,15 @@ theme:
         icon: material/brightness-4
         name: Switch to light mode
 
+validation:
+  omitted_files: warn
+  absolute_links: warn
+  unrecognized_links: warn
+  anchors: warn
+
+exclude_docs: |
+  email-to-dlr.md
+
 nav:
   - Home: index.md
   - For Leander: for-leander.md
