@@ -20,6 +20,8 @@ def nav_pages():
 def test_every_nav_page_exists_and_has_a_title():
     for page in nav_pages():
         text = (ROOT / "docs" / page).read_text()
+        if text.startswith("---\n"):  # skip YAML front matter
+            text = text.split("---\n", 2)[2].lstrip("\n")
         assert text.startswith("# "), page
 
 
