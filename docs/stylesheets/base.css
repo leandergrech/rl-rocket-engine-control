@@ -1,0 +1,82 @@
+/* Shared structure for every theme option. Colours come from the theme file. */
+
+.md-typeset h1, .md-typeset h2, .md-typeset h3 {
+  font-family: var(--heading-font, var(--md-text-font-family));
+  color: var(--md-default-fg-color);
+}
+.md-typeset h1 { font-weight: 700; letter-spacing: -0.01em; }
+.md-typeset h2 { font-weight: 600; }
+
+/* Tables: hairline rules, tinted header, tabular numbers. */
+.md-typeset table:not([class]) {
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: var(--table-radius, 6px);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}
+.md-typeset table:not([class]) th {
+  background: var(--table-head-bg);
+  color: var(--table-head-fg);
+  font-weight: 600;
+}
+.md-typeset table:not([class]) tr:hover { background: var(--table-row-hover); }
+
+/* Charts */
+.md-typeset .viz { margin: 1.2em 0 1.6em; }
+.md-typeset .viz svg { max-width: 100%; height: auto; }
+.md-typeset .viz-caption {
+  font-size: 0.68rem;
+  color: var(--md-default-fg-color--light);
+  margin-top: -1em;
+}
+#vg-tooltip-element.vg-tooltip.custom-theme {
+  background: var(--md-default-bg-color);
+  color: var(--md-default-fg-color);
+  border: 1px solid var(--md-default-fg-color--lighter);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  font-family: var(--md-text-font-family);
+  font-size: 12px;
+  padding: 6px 10px;
+}
+#vg-tooltip-element.vg-tooltip.custom-theme td.key { color: var(--md-default-fg-color--light); }
+#vg-tooltip-element.vg-tooltip.custom-theme td.value { font-weight: 600; }
+
+/* Mermaid picks up these Material variables. */
+:root > *, [data-md-color-scheme] {
+  --md-mermaid-font-family: var(--md-text-font-family);
+}
+
+/* Stat tiles: a row of headline numbers, each with its source. */
+.md-typeset .kpi-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 0.8rem;
+  margin: 1.2em 0 1.6em;
+}
+.md-typeset .kpi {
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 8px;
+  padding: 0.7rem 0.85rem 0.6rem;
+  background: var(--md-code-bg-color);
+}
+.md-typeset .kpi__value {
+  font-family: var(--heading-font, var(--md-text-font-family));
+  font-size: 1.55rem;
+  font-weight: 600;
+  line-height: 1.15;
+  color: var(--md-default-fg-color);
+}
+.md-typeset .kpi__label {
+  font-size: 0.68rem;
+  line-height: 1.35;
+  color: var(--md-default-fg-color--light);
+  margin-top: 0.25rem;
+}
+.md-typeset .kpi__src { font-size: 0.62rem; }
+
+/* Diagram captions sit under Mermaid figures. */
+.md-typeset .mermaid + p.caption, .md-typeset p.caption {
+  font-size: 0.68rem;
+  color: var(--md-default-fg-color--light);
+}

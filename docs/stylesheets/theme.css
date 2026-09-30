@@ -1,0 +1,111 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap');
+/* Methalox Plume theme: cryogenic navy, plume blue, ignition orange. Chart colours are the validated
+   dataviz reference palette (blue, orange, aqua, ...) checked against these page surfaces. */
+:root { --heading-font: 'Space Grotesk', 'Inter', sans-serif; --viz-font: 'Inter', sans-serif; }
+body[data-md-color-scheme="default"] {
+  --md-default-bg-color: #fbfbfd;
+  --md-default-bg-color--light: #fbfbfd;
+  --md-default-fg-color: rgba(16, 22, 44, 0.92);
+  --md-default-fg-color--light: rgba(16, 22, 44, 0.64);
+  --md-default-fg-color--lighter: rgba(16, 22, 44, 0.34);
+  --md-default-fg-color--lightest: rgba(16, 22, 44, 0.09);
+  --md-typeset-color: rgba(16, 22, 44, 0.92);
+  --md-primary-fg-color: #0f1a3a;
+  --md-primary-fg-color--light: #2a3d78;
+  --md-primary-fg-color--dark: #0a1230;
+  --md-primary-bg-color: #ffffff;
+  --md-primary-bg-color--light: #ffffffb3;
+  --md-accent-fg-color: #b84a0c;
+  --md-accent-fg-color--transparent: #b84a0c1a;
+  --md-typeset-a-color: #1f5fbf;
+  --md-code-bg-color: #eef1f8;
+  --md-code-fg-color: #1c2340;
+  --md-footer-bg-color: #0f1a3a;
+  --md-footer-bg-color--dark: #0a1230;
+  --md-typeset-table-color: rgba(16, 22, 44, 0.12);
+  --table-head-bg: #eef1f8;
+  --table-head-fg: #14182b;
+  --table-row-hover: rgba(16, 22, 44, 0.035);
+  --md-mermaid-node-bg-color: #e8eefb;
+  --md-mermaid-node-fg-color: #14182b;
+  --md-mermaid-edge-color: #4a5068;
+  --md-mermaid-label-bg-color: #fbfbfd;
+  --md-mermaid-label-fg-color: #14182b;
+  --brand-accent: #e8651e;
+  --viz-ink: #14182b;
+  --viz-ink-2: #4a5068;
+  --viz-muted: #898781;
+  --viz-grid: #e6e8f0;
+  --viz-axis: #c5c9d8;
+  --viz-seq: #cde2fb,#9ec5f4,#6da7ec,#3987e5,#256abf,#184f95,#0d366b;
+  --viz-seq-label: #ffffff;
+  --viz-ord-1: #184f95;
+  --viz-ord-2: #3987e5;
+  --viz-ord-3: #86b6ef;
+  --viz-s1: #2a78d6;
+  --viz-s2: #eb6834;
+  --viz-s3: #1baf7a;
+  --viz-s4: #eda100;
+  --viz-s5: #e87ba4;
+  --viz-s6: #008300;
+  --viz-s7: #4a3aa7;
+  --viz-s8: #e34948;
+}
+
+body[data-md-color-scheme="slate"] {
+  --md-default-bg-color: #0b1020;
+  --md-default-bg-color--light: #0b1020;
+  --md-default-fg-color: rgba(227, 231, 243, 0.92);
+  --md-default-fg-color--light: rgba(227, 231, 243, 0.64);
+  --md-default-fg-color--lighter: rgba(227, 231, 243, 0.34);
+  --md-default-fg-color--lightest: rgba(227, 231, 243, 0.09);
+  --md-typeset-color: rgba(227, 231, 243, 0.92);
+  --md-primary-fg-color: #0e1633;
+  --md-primary-fg-color--light: #25366b;
+  --md-primary-fg-color--dark: #070b18;
+  --md-primary-bg-color: #ffffff;
+  --md-primary-bg-color--light: #ffffffb3;
+  --md-accent-fg-color: #ff8a3d;
+  --md-accent-fg-color--transparent: #ff8a3d1a;
+  --md-typeset-a-color: #7fb0ff;
+  --md-code-bg-color: #121a33;
+  --md-code-fg-color: #d9def0;
+  --md-footer-bg-color: #070b18;
+  --md-footer-bg-color--dark: #05080f;
+  --md-typeset-table-color: rgba(227, 231, 243, 0.12);
+  --table-head-bg: #141d3b;
+  --table-head-fg: #eef1fa;
+  --table-row-hover: rgba(227, 231, 243, 0.035);
+  --md-mermaid-node-bg-color: #16204a;
+  --md-mermaid-node-fg-color: #eef1fa;
+  --md-mermaid-edge-color: #b3bad1;
+  --md-mermaid-label-bg-color: #0b1020;
+  --md-mermaid-label-fg-color: #eef1fa;
+  --brand-accent: #ff8a3d;
+  --viz-ink: #eef1fa;
+  --viz-ink-2: #b3bad1;
+  --viz-muted: #898781;
+  --viz-grid: #1c2440;
+  --viz-axis: #2e3858;
+  --viz-seq: #184f95,#1c5cab,#256abf,#2a78d6,#3987e5,#6da7ec,#9ec5f4;
+  --viz-seq-label: #0b0d12;
+  --viz-ord-1: #9ec5f4;
+  --viz-ord-2: #5598e7;
+  --viz-ord-3: #1c5cab;
+  --viz-s1: #3987e5;
+  --viz-s2: #d95926;
+  --viz-s3: #199e70;
+  --viz-s4: #c98500;
+  --viz-s5: #d55181;
+  --viz-s6: #008300;
+  --viz-s7: #9085e9;
+  --viz-s8: #e66767;
+}
+
+
+.md-header { background: linear-gradient(90deg, var(--md-primary-fg-color), var(--md-primary-fg-color--light)); }
+.md-header::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 3px;
+  background: linear-gradient(90deg, var(--brand-accent), #3fa9f5 60%, transparent); }
+.md-typeset h2::before { content: ""; display: inline-block; width: .42em; height: .42em; margin: 0 .5em .12em 0;
+  background: var(--brand-accent); transform: rotate(45deg); }
+.md-nav__link--active { color: var(--brand-accent) !important; }
