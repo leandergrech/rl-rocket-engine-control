@@ -12,6 +12,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
-      - run: pip install -e ".[dev]"
+          python-version: "3.12"
+      # CPU-only PyTorch first, so the rl extra does not pull the CUDA wheels.
+      - run: pip install torch --index-url https://download.pytorch.org/whl/cpu
+      - run: pip install -e ".[dev,rl]"
+      # Chrome is preinstalled on ubuntu-latest; tests/test_lab_model.py uses it headless.
       - run: pytest -q
+      - run: python scripts/evaluate.py --check

@@ -1,0 +1,9 @@
+{
+ "gains": {
+  "kp_p": 0.8702,
+  "ki_p": 0.0849,
+  "kp_r": 0.5824,
+  "ki_r": 4.6303
+ },
+ "how": "Nelder-Mead on the mean return of 12 random 30 s training episodes (seeds 100-111), sensor delays and noise on, no randomisation; scripts/train.py pi"
+}
