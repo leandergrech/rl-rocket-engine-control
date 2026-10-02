@@ -8,6 +8,7 @@ edit_uri: edit/main/docs/
 
 theme:
   name: material
+  custom_dir: overrides
   logo: assets/logo.svg
   favicon: assets/logo.svg
   font:
@@ -16,6 +17,8 @@ theme:
   features:
     - navigation.sections
     - navigation.top
+    - toc.follow
+    - toc.integrate
     - content.code.copy
     - search.highlight
   palette:
@@ -42,24 +45,49 @@ exclude_docs: |
   email-to-dlr.md
 
 nav:
-  - Home: index.md
-  - For Leander: for-leander.md
-  - 1. The control problem: 01-problem.md
-  - 2. Domain primer: 02-primer.md
-  - 3. Timeline 2018-2026: 03-timeline.md
-  - 4. Solution designs: 04-designs.md
-  - 5. Limitations: 05-limitations.md
-  - 6. Open questions: 06-open-questions.md
-  - 7. References: 07-references.md
+  - Overview:
+      - Home: index.md
+      - For Leander: for-leander.md
+  - The benchmark:
+      - The control problem: 01-problem.md
+      - Designs and results: 04-designs.md
+      - Baselines on the surrogate: 04a-surrogate-baselines.md
+      - Limitations: 05-limitations.md
+      - Open questions: 06-open-questions.md
+  - Domain primer:
+      - Start here: 02-primer.md
+      - The engine as a control system: primer/1-engine.md
+      - The expander-bleed cycle: primer/2-cycle.md
+      - Valves are the actuators: primer/3-valves.md
+      - Fast chamber, slow heat: primer/4-time-scales.md
+      - Constraints and the operating map: primer/5-constraints.md
+      - Sensors, delays and noise: primer/6-sensors.md
+      - From physics to reward: primer/7-reward.md
+      - The Engine Lab: primer/8-lab.md
+      - Hot fire, simulators and glossary: primer/9-field.md
+  - Reference:
+      - Equation sheet: primer/equations.md
+      - Timeline 2018–2026: 03-timeline.md
+      - References: 07-references.md
+
+hooks:
+  - hooks/asset_versions.py
 
 markdown_extensions:
   - admonition
   - attr_list
+  - md_in_html
   - footnotes
   - tables
   - toc:
       permalink: true
   - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+      options:
+        custom_icons:
+          - overrides/.icons
   - pymdownx.arithmatex:
       generic: true
   - pymdownx.superfences:
@@ -76,6 +104,10 @@ extra_css:
   - stylesheets/theme.css
 
 extra_javascript:
+  - javascripts/lumen-model.js
+  - javascripts/widgets.js
+  - javascripts/lab.js
+  - javascripts/nav.js
   - javascripts/mathjax.js
   - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
   - https://cdn.jsdelivr.net/npm/vega@6.4.0/build/vega.min.js
