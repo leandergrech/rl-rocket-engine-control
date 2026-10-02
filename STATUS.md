@@ -1,11 +1,11 @@
 # STATUS
 repo: https://github.com/leandergrech/rl-rocket-engine-control
 pages: https://leandergrech.github.io/rl-rocket-engine-control/
-step: 4
-state: running
-updated: 2026-10-02T15:58:19Z
+step: 6
+state: blocked
+updated: 2026-10-02T19:03:11Z
 blockers: LUMEN Control Challenge simulator, evaluation service and fine-tuning dataset not public; DLR grants access by email (legal issues pending per 17 Sep 2026 pitch)
-next: finish SAC/PPO no-preview training, evaluate all controllers, write the surrogate-baselines page and home hero, commit docs and push
+next: Leander sends docs/email-to-dlr.md; when DLR grants access, port the env to the challenge simulator and rerun PI/PPO/SAC there (5 seeds), then the residual-on-PI and preview/action-rate experiments (docs/06-open-questions.md Q3, Q5)
 log:
 - 2026-09-30T16:07:05Z step 0 done: gh logged in as leandergrech (repo, workflow scopes); git user.name "Leander Grech"; repo folder empty
 - 2026-09-30T16:08:01Z step 1 done: skeleton committed, public repo created and pushed
@@ -17,3 +17,4 @@ log:
 - 2026-09-30T22:23:50Z docs visuals: Methalox Plume theme chosen by Leander from 4 rendered options; 13 Mermaid diagrams and 14 Vega-Lite charts added (each beside its table or a table view), themed light/dark; pytest 36 passed, mkdocs --strict ok, Pages redeployed
 - 2026-10-02T14:54:47Z Leander asked for tokamak/flatland-style docs (primer chapters, Lab) and approved a clearly labelled dummy lab; thesis Table 4.6 gives the 2x2 static gains, Table 4.7 settling times: enough to calibrate a reduced model
 - 2026-10-02T15:58:19Z surrogate calibrated (statics within ~13 % of Table 4.6 except TOV->T_RC; TFV settling within 25 %; overshoot 6.48 vs 6.5 bar); valve law fixed to settle without overshoot; PI tuned; PPO preview trained (3 M steps, 16.8 min); Python/JS parity test passes in headless Chrome; primer split into 9 chapters + equation sheet + Engine Lab
+- 2026-10-02T19:03:11Z surrogate lab done: 9 primer chapters with widgets, equation sheet, Engine Lab (PI/PPO/SAC live in the browser; Python/JS parity in headless Chrome); baselines on the surrogate: PI 2.75/2.48 % MAPE, PPO/SAC with preview ~0.5/0.3 %, preview halves pressure error (2 PPO seeds), 5 % weaker LOX turbine -> 3 % ROF offset for the networks, removed by PI; every run under 1 h CPU (PPO 17-27 min, SAC 50-55 min); pytest 71 passed, mkdocs --strict ok, reproduce.sh ok (evaluate --check exact); challenge still not public
