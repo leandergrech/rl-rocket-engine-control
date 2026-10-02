@@ -10,9 +10,18 @@ readme = "README.md"
 license = {text = "MIT"}
 authors = [{name = "Leander Grech"}]
 requires-python = ">=3.10"
-dependencies = []
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "gymnasium>=0.29",
+]
 
 [project.optional-dependencies]
+# PPO/SAC baselines. On CPU-only machines install torch from https://download.pytorch.org/whl/cpu first.
+rl = [
+    "torch>=2.2",
+    "stable-baselines3>=2.3",
+]
 dev = [
     "pytest>=7",
     "mkdocs>=1.6,<2",
@@ -22,6 +31,9 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+rl_rocket_engine = ["surrogate/*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

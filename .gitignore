@@ -10,3 +10,5 @@ build/
 dist/
 # large data fetched by data/fetch.py
 data/external/
+data/checkpoints/
+.venv*/
