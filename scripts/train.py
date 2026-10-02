@@ -1,8 +1,9 @@
 """Train the baselines on the LUMEN-like surrogate (CPU only).
 
-    python scripts/train.py pi                         # tune the decoupled PI gains (about 3 min)
+    python scripts/train.py pi                         # tune the decoupled PI gains (about 8 min)
     python scripts/train.py ppo-preview                # PPO with 4-step reference preview
     python scripts/train.py all                        # PI, then PPO and SAC with and without preview
+    python scripts/train.py ppo-preview --seed 1       # a second seed, saved as ppo-preview-seed1
     python scripts/train.py sac-nopreview --steps 20000 --out /tmp/x   # quick smoke run
 
 Trained actors go to data/policies/<name>.json (small, used by the docs Lab and by evaluate.py);
@@ -24,7 +25,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from rl_rocket_engine.surrogate.env import LumenSurrogateEnv  # noqa: E402
 from rl_rocket_engine.surrogate.pi import GAINS_FILE, DecoupledPI, PIGains  # noqa: E402
-from rl_rocket_engine.surrogate.rl import CONFIGS, train  # noqa: E402
+from rl_rocket_engine.surrogate.rl import CONFIGS, run_name, train  # noqa: E402
 
 TUNE_SEEDS = list(range(100, 112))
 
@@ -68,7 +69,7 @@ def main() -> None:
     ap.add_argument("name", choices=["pi", "all", *CONFIGS])
     ap.add_argument("--steps", type=int, default=None)
     ap.add_argument("--seed", type=int, default=0)
-    ap.add_argument("--n-envs", type=int, default=8)
+    ap.add_argument("--n-envs", type=int, default=6)
     ap.add_argument("--out", type=Path, default=ROOT / "data" / "checkpoints")
     args = ap.parse_args()
     names = ["pi", *CONFIGS] if args.name == "all" else [args.name]
@@ -80,10 +81,11 @@ def main() -> None:
         policies = ROOT / "data" / "policies"
         policies.mkdir(parents=True, exist_ok=True)
         if args.out.resolve() == (ROOT / "data" / "checkpoints").resolve():
-            (policies / f"{name}.json").write_text((args.out / f"{name}.json").read_text())
+            stem = run_name(name, args.seed)
+            (policies / f"{stem}.json").write_text((args.out / f"{stem}.json").read_text())
             curve = meta["curve"]
             step = max(1, len(curve) // 200)  # keep the learning curve small enough to commit
-            (policies / f"{name}.train.json").write_text(json.dumps(dict(meta, curve=curve[::step])))
+            (policies / f"{stem}.train.json").write_text(json.dumps(dict(meta, curve=curve[::step])))
         print(f"{name}: {meta['steps']} steps in {meta['wall_s'] / 60:.1f} min", flush=True)
 
 

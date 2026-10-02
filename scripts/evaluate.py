@@ -39,6 +39,11 @@ LABELS = {"open-loop": "Open-loop feedforward", "pi": "Decoupled PI", "ppo-previ
           "ppo-nopreview": "PPO, no preview", "sac-preview": "SAC, preview", "sac-nopreview": "SAC, no preview"}
 
 
+def label(name: str) -> str:
+    base, _, seed = name.partition("-seed")
+    return LABELS.get(base, base) + (f", seed {seed}" if seed else "")
+
+
 def controllers() -> dict:
     ctl = {"open-loop": None, "pi": None}
     for f in sorted((ROOT / "data" / "policies").glob("*.json")):
@@ -109,7 +114,7 @@ def main() -> None:
             row["training"] = {"steps": meta["steps"], "wall_min": round(meta["wall_s"] / 60, 1), "algo": meta["algo"]}
         summary[name] = row
         t = row["test"]
-        print(f"{LABELS.get(name, name):24s} test MAPE p {t['mape_p']:.2f} %, ROF {t['mape_rof']:.2f} %, "
+        print(f"{label(name):28s} test MAPE p {t['mape_p']:.2f} %, ROF {t['mape_rof']:.2f} %, "
               f"return {t['reward']:.1f}, violations {t['violations']:.1f}", flush=True)
     if args.check:
         check(summary)
@@ -118,13 +123,13 @@ def main() -> None:
     (OUT / "eval_traces.json").write_text(json.dumps(traces))
     lines = ["# Baselines on the LUMEN-like surrogate", "",
              "Surrogate results (not DLR's simulator). Mean over 20 held-out 30 s episodes (seeds 1000-1019).", "",
-             "| Controller | MAPE p_cc [%] | MAPE ROF [%] | Return | Settling p_cc [s] | Settling ROF [s] | Valve travel | "
-             "Violation steps | Randomised: MAPE p_cc / ROF [%] |", "|---|---|---|---|---|---|---|---|---|"]
+             "| Controller | MAPE p_cc [%] | MAPE ROF [%] | Return | Steps settled p_cc / ROF [%] | Settling p_cc / ROF [s] | "
+             "Valve travel | Violation steps | Randomised: MAPE p_cc / ROF [%] |", "|---|---|---|---|---|---|---|---|---|"]
     for name, row in summary.items():
         t, d = row["test"], row["test_randomised"]
-        lines.append(f"| {LABELS.get(name, name)} | {t['mape_p']:.2f} | {t['mape_rof']:.2f} | {t['reward']:.1f} | "
-                     f"{t['settle_p']:.2f} | {t['settle_rof']:.2f} | {t['valve_travel']:.2f} | {t['violations']:.1f} | "
-                     f"{d['mape_p']:.2f} / {d['mape_rof']:.2f} |")
+        lines.append(f"| {label(name)} | {t['mape_p']:.2f} | {t['mape_rof']:.2f} | {t['reward']:.1f} | "
+                     f"{100 * t['settled_p']:.0f} / {100 * t['settled_rof']:.0f} | {t['settle_p']:.2f} / {t['settle_rof']:.2f} | "
+                     f"{t['valve_travel']:.2f} | {t['violations']:.1f} | {d['mape_p']:.2f} / {d['mape_rof']:.2f} |")
     (OUT / "summary.md").write_text("\n".join(lines) + "\n")
     print(f"wrote {OUT.relative_to(ROOT)}/summary.json, summary.md, eval_traces.json")
 

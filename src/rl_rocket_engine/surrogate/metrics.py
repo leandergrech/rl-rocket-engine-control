@@ -10,8 +10,9 @@ DT = 0.1
 def episode_metrics(log: list[dict], band: float = 0.02) -> dict:
     """MAPE and IAE per output, settling time after set-point steps, valve travel, constraint violations.
 
-    Settling time: for each step in a reference (a jump of more than 1 % between two samples), the time
-    until the output enters and stays in a band of +-2 % of the new set point, until the next change.
+    Settling time: for each step in a reference (a jump of more than 1 % between two samples, with the
+    reference held on both sides, so samples of a ramp do not count), the time until the output enters
+    and stays in a band of +-2 % of the new set point, until the next change.
     """
     p = np.array([s["p_cc"] for s in log])
     pr = np.array([s["p_ref"] for s in log])
@@ -27,7 +28,9 @@ def episode_metrics(log: list[dict], band: float = 0.02) -> dict:
         reward=float(sum(s.get("reward", 0.0) for s in log)),
     )
     for name, y, ref in (("p", p, pr), ("rof", r, rr)):
-        jumps = np.where(np.abs(np.diff(ref)) / ref[:-1] > 0.01)[0] + 1
+        d = np.abs(np.diff(ref, prepend=ref[0], append=ref[-1]))  # d[i] = |ref[i] - ref[i-1]|, padded
+        held = d < 1e-9
+        jumps = np.array([i for i in range(1, len(ref)) if d[i] / ref[i - 1] > 0.01 and held[i - 1] and held[i + 1]], int)
         changes = np.where(np.abs(np.diff(ref)) > 1e-9)[0] + 1
         times = []
         for j in jumps:
@@ -41,9 +44,15 @@ def episode_metrics(log: list[dict], band: float = 0.02) -> dict:
                 times.append(((last[-1] + 1) if len(last) else 0) * DT)
         out[f"settle_{name}"] = float(np.nanmean(times)) if times and not np.all(np.isnan(times)) else float("nan")
         out[f"unsettled_{name}"] = int(np.sum(np.isnan(times))) if times else 0
+        out[f"steps_{name}"] = len(times)
     return out
 
 
 def summarise(rows: list[dict]) -> dict:
+    """Means over episodes; settled_* is the share of all set-point steps that settled (pooled)."""
     keys = rows[0].keys()
-    return {k: float(np.nanmean([r[k] for r in rows])) for k in keys}
+    out = {k: float(np.nanmean([r[k] for r in rows])) for k in keys}
+    for name in ("p", "rof"):
+        n = sum(r[f"steps_{name}"] for r in rows)
+        out[f"settled_{name}"] = float(1 - sum(r[f"unsettled_{name}"] for r in rows) / n) if n else float("nan")
+    return out

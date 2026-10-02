@@ -118,7 +118,7 @@ def test_training_smoke_and_export(tmp_path, name):
     from rl_rocket_engine.surrogate.rl import JsonPolicy, train
 
     meta = train(name, tmp_path, steps=600, n_envs=1, log=lambda s: None)
-    assert meta["steps"] == 600
+    assert meta["steps"] >= 600  # PPO rounds up to whole rollouts
     from stable_baselines3 import PPO, SAC
 
     model = (PPO if name.startswith("ppo") else SAC).load(tmp_path / f"{name}.zip")

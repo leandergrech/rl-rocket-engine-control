@@ -35,8 +35,16 @@ def make_env(seed: int = 0, **kwargs):
     return _init
 
 
-def train(name: str, out_dir: Path, steps: int | None = None, seed: int = 0, n_envs: int = 8,
-          randomise: bool = False, log=print) -> dict:
+def run_name(name: str, seed: int = 0) -> str:
+    """Files of seed 0 carry the configuration name; further seeds get a suffix."""
+    return name if seed == 0 else f"{name}-seed{seed}"
+
+
+MAX_MINUTES = 55.0  # the brief's budget is under an hour of CPU per baseline; stop early if needed
+
+
+def train(name: str, out_dir: Path, steps: int | None = None, seed: int = 0, n_envs: int = 6,
+          randomise: bool = False, log=print, max_minutes: float = MAX_MINUTES) -> dict:
     import torch
     from stable_baselines3 import PPO, SAC
     from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
@@ -69,17 +77,22 @@ def train(name: str, out_dir: Path, steps: int | None = None, seed: int = 0, n_e
             if len(curve) and self.n_calls % 2000 == 0:
                 recent = [c[1] for c in curve[-50:]]
                 log(f"{name}: {self.num_timesteps} steps, mean return {np.mean(recent):.1f}, {time.time() - t0:.0f} s")
+            if time.time() - t0 > 60 * max_minutes:
+                log(f"{name}: stopping at {self.num_timesteps} steps, wall-clock budget of {max_minutes:.0f} min reached")
+                return False
             return True
 
     model.learn(total_timesteps=steps, callback=Curve())
+    steps = model.num_timesteps  # fewer than requested if the time budget stopped training
     vec.close()
     out_dir.mkdir(parents=True, exist_ok=True)
-    model.save(out_dir / f"{name}.zip")
+    stem = run_name(name, seed)
+    model.save(out_dir / f"{stem}.zip")
     policy = export_policy(model, algo, env_kwargs)
-    (out_dir / f"{name}.json").write_text(json.dumps(policy))
+    (out_dir / f"{stem}.json").write_text(json.dumps(policy))
     meta = dict(name=name, algo=algo, env=env_kwargs, steps=steps, seed=seed, n_envs=n_envs,
                 wall_s=time.time() - t0, curve=curve)
-    (out_dir / f"{name}.train.json").write_text(json.dumps(meta))
+    (out_dir / f"{stem}.train.json").write_text(json.dumps(meta))
     return meta
 
 

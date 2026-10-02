@@ -11,9 +11,9 @@ FENCE = re.compile(r"^```vegalite\n(.*?)^```", re.S | re.M)
 
 
 def chart_specs():
-    for page in sorted(DOCS.glob("*.md")):
+    for page in sorted(DOCS.rglob("*.md")):
         for i, match in enumerate(FENCE.finditer(page.read_text())):
-            yield pytest.param(page.name, match.group(1), id=f"{page.stem}-{i}")
+            yield pytest.param(page.name, match.group(1), id=f"{page.relative_to(DOCS).with_suffix('')}-{i}")
 
 
 def has_inline_data(node):
