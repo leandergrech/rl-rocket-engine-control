@@ -26,22 +26,25 @@ flowchart LR
 
 ## What is new
 
-- **Physics with several clocks.** Chamber pressure answers within fractions of a second. Turbopump speeds take about a second. The fuel side answers through heat soaking into the cooling channels, with settling times of 5–24 s ([Table 4.7](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=91)). If your crystal-alignment objective behaved roughly like a static map from crystal angle to loss signal plus noise, this plant is different: it has memory. Read [§2.5](02-primer.md#25-time-scales-fast-chamber-slow-heat) twice.
-- **Coupled outputs by construction.** $p_{cc}$ follows the sum of the propellant flows, and $R_{OF}$ their ratio. Both actions move both outputs ([§2.2](02-primer.md#22-mixture-ratio-is-temperature)).
-- **Constraints with physical teeth.** A mixture-ratio excursion burns the chamber. Too little coolant flow overheats the wall. Coolant pressure below 46 bar boils the methane. And the most efficient operating point sits on the coolant-flow constraint ([§2.6](02-primer.md#26-what-the-constraints-protect)).
+- **Physics with several clocks.** Chamber pressure answers within fractions of a second. Turbopump speeds take about a second. The fuel side answers through heat soaking into the cooling channels, with settling times of 5–24 s ([Table 4.7](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=91)). If your crystal-alignment objective behaved roughly like a static map from crystal angle to loss signal plus noise, this plant is different: it has memory. Read [Fast chamber, slow heat](primer/4-time-scales.md) twice.
+- **Coupled outputs by construction.** $p_{cc}$ follows the sum of the propellant flows, and $R_{OF}$ their ratio. Both actions move both outputs ([The engine as a control system](primer/1-engine.md#two-valves-two-outputs-no-clean-pairing)).
+- **Constraints with physical teeth.** A mixture-ratio excursion burns the chamber. Too little coolant flow overheats the wall. Coolant pressure below 46 bar boils the methane. And the most efficient operating point sits on the coolant-flow constraint ([Constraints](primer/5-constraints.md#what-the-constraints-protect)).
 - **Actuator models are the weak point.** The first two hardware deployments of DLR's RL controller failed on valve dynamics, not on the plant ([§5.1](05-limitations.md#51-sim-to-real-the-controller-works-but-3-worse-than-in-simulation)).
 - **Access is gated.** The simulator is EcosimPro with ESA's ESPSS library. ESPSS "needs prior approval from ESA" ([brochure](https://www.ecosimpro.com/wp-content/uploads/2015/02/ecosimpro_brochure_library_espss.pdf)). The public challenge is still waiting on "legal issues" ([§7.1](07-references.md#71-search-log-where-the-lumen-control-challenge-simulator-is-not)). Plan for a licence that may restrict redistribution and teaching use.
 - **Slow simulation.** DLR trained at about 1 M steps per day on 10 simulator instances ([thesis p. 83](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=100)). The bootcamp's air-traffic reference solution trains for 1.5 M steps as a matter of course. Budget accordingly.
 
 ## Ten working days
 
-Every reading has a link and page range. Every coding task runs on public environments or on arrays; none of them simulates an engine. The point is to have the wrappers, metrics and baselines ready, so that access day is spent on experiments, not plumbing.
+Every reading has a link and page range. The point is to have the wrappers, metrics and baselines ready, so that access day is spent on experiments, not plumbing.
+
+!!! info "Update, 2 October 2026: a surrogate to practise on"
+    The coding tasks were written for public environments, because no engine simulator was public. This repo now has a clearly labelled **surrogate** of the 2×2 task: a reduced engine calibrated to DLR's published gains and settling times ([model card](primer/8-lab.md#model-card)). Its PI, PPO and SAC baselines cover much of Day 6 and the baseline half of open question 5 ([Baselines on the surrogate](04a-surrogate-baselines.md)). Use it to debug wrappers and metrics; rerun everything on DLR's simulator when access arrives.
 
 ### Week 1: the plant and the literature
 
 **Day 1: orientation.**
 
-- *Read:* this site's [§1](01-problem.md) and [§2](02-primer.md). Then the Dresia thesis Ch. 1–2, PDF pp. [18–54](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=18): why engines are controlled, basic PI loops, the SSME example, throttling needs.
+- *Read:* this site's [§1](01-problem.md) and the [domain primer](02-primer.md). Then the Dresia thesis Ch. 1–2, PDF pp. [18–54](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=18): why engines are controlled, basic PI loops, the SSME example, throttling needs.
 - *Do:* send the [DLR email](https://github.com/leandergrech/rl-rocket-engine-control/blob/main/docs/email-to-dlr.md) today; access takes time. Set up the environment with `pip install -e .[dev]`, then run `python scripts/check_challenge.py`.
 
 **Day 2: LUMEN itself.**

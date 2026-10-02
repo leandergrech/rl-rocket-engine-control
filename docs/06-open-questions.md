@@ -96,7 +96,7 @@ Report tracking error and constraint violations against the amount of target dat
 
 **What a first paper would show.**
 
-- A decoupled PI baseline on the 2×2 task: the $R_{OF}$ loop fast, the $p_{cc}$ loop slow, as in [§2.2](02-primer.md#22-mixture-ratio-is-temperature), with gain scheduling over the envelope.
+- A decoupled PI baseline on the 2×2 task: the $R_{OF}$ loop fast, the $p_{cc}$ loop slow, as in [The engine as a control system](primer/1-engine.md#mixture-ratio-is-temperature), with gain scheduling over the envelope.
 - A residual SAC whose output is clipped to ±x % valve travel around the PI command.
 - Results on tracking, valve travel (Δu) and constraint violations across test cases 1–5, plus the degradation when the residual is disabled mid-episode.
 
@@ -111,7 +111,7 @@ flowchart TB
 
 Claim to test: residual RL recovers most of pure RL's tracking advantage with a hard bound on how far it can take the valves from a certifiable baseline.
 
-**Effort.** About 2 months. This is also the most useful baseline set for the challenge's leaderboard.
+**Effort.** About 2 months. This is also the most useful baseline set for the challenge's leaderboard. A dry run of the PI baseline exists on the surrogate. There, a 5 % weaker LOX turbine leaves the integral-free PPO and SAC policies with a steady 3 % mixture-ratio offset that the PI removes, which is the case for a residual design in miniature ([Baselines on the surrogate](04a-surrogate-baselines.md)); the residual agent does not yet.
 
 ## 4. Fault-tolerant control with latent mode inference (test cases 6–7)
 

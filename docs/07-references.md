@@ -240,8 +240,12 @@ The crystal-alignment work at CERN (TWOCRYST/AICRYSCON) is described from Leande
 | Item | Version | Use |
 |---|---|---|
 | LUMEN Control Challenge simulator | **not available** | Not installed; not public on 2026-09-30. Versions will be recorded here when access is granted. |
-| Python | 3.10.12 | `.venv` |
-| mkdocs / mkdocs-material / pymdown-extensions / Markdown | 1.6.1 / 9.7.7 / 12.1 / 3.10.3 | Docs site |
+| This repo's surrogate | calibrated 2026-10-02 | `src/rl_rocket_engine/surrogate/`; parameters and fit in `calibrated.json` ([model card](primer/8-lab.md#model-card)) |
+| Python | 3.12.3 | `.venv` (managed with uv 0.10.11) |
+| NumPy / SciPy / Gymnasium | 2.5.3 / 1.18.1 / 1.3.0 | Surrogate, calibration (`scipy.optimize.least_squares`), environment |
+| PyTorch (CPU) / Stable-Baselines3 | 2.14.1+cpu / 2.9.0 | PPO and SAC baselines (`.[rl]` extra) |
+| Google Chrome (headless) | system | Python/JavaScript parity test of the Lab model (`tests/test_lab_model.py`, skipped without Chrome) |
+| mkdocs / mkdocs-material / pymdown-extensions / Markdown | 1.6.1 / 9.7.7 / 12.1 / 3.11 | Docs site |
 | pytest | 9.1.1 | Tests |
 | Vega / Vega-Lite / vega-embed | 6.4.0 / 6.4.3 / 7.3.0 | Charts, loaded from jsDelivr at page load |
 | Mermaid | 11.x (loaded by Material from unpkg) | Diagrams |
@@ -253,11 +257,11 @@ The crystal-alignment work at CERN (TWOCRYST/AICRYSCON) is described from Leande
 ## 7.10 Licences
 
 - **This repository:** MIT (see `LICENSE`).
-- **Python dependencies (dev only; the package itself has none):** MkDocs (BSD-2-Clause), Material for MkDocs (MIT), pymdown-extensions (MIT), Markdown (BSD-3-Clause), PyYAML (MIT), pytest (MIT). Read from the installed package metadata.
+- **Python dependencies:** NumPy and SciPy (BSD-3-Clause), Gymnasium (MIT); with the `rl` extra, PyTorch (BSD-3-Clause; its wheel metadata also lists the licences of bundled components) and Stable-Baselines3 (MIT); dev only, MkDocs (BSD-2-Clause), Material for MkDocs (MIT), pymdown-extensions (MIT), Markdown (BSD-3-Clause), PyYAML (MIT), pytest (MIT). Read from the installed package metadata.
 - **Front-end libraries loaded by the site (not redistributed):** Vega, Vega-Lite and vega-embed (BSD-3-Clause, per their npm metadata), Mermaid (MIT), MathJax (Apache-2.0). Fonts Inter, Space Grotesk and JetBrains Mono are served by Google Fonts under the SIL Open Font License (each has an `OFL.txt` in the [google/fonts](https://github.com/google/fonts/tree/main/ofl) repository).
 - **Documents cited, not redistributed:** Dresia thesis CC BY-NC 4.0; Hörger et al. 2024 CC BY-NC-ND 4.0; DX 2024 and DX'25 papers CC BY 4.0; rocket-recycling CC BY-NC-SA 4.0.
 - **Simulation tools behind the benchmark:** EcosimPro is commercial software by Empresarios Agrupados Internacional (EAI); ESPSS is ESA-proprietary and needs "prior approval from ESA" ([brochure](https://www.ecosimpro.com/wp-content/uploads/2015/02/ecosimpro_brochure_library_espss.pdf)). The challenge's licence terms are unknown until DLR publishes them.
-- No third-party code, data or figures are redistributed in this repository.
+- No third-party code, data or figures are redistributed in this repository. The surrogate's parameters are numbers read from the cited documents; its code and the trained networks in `data/policies/` are this repository's own (MIT).
 
 ## 7.11 Unverified or blocked
 

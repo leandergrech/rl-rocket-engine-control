@@ -229,7 +229,7 @@ These follow from the published design ([AI4Aerospace 2025](https://w3.onera.fr/
 
 ## 5.7 Limits of this review
 
-- **No code or numbers of my own.** The challenge environment was not available, so no baseline in this repository has been run. Every result here is reported by others.
+- **No numbers of my own on LUMEN.** The challenge environment was not available. The only results of my own are on a surrogate engine written for this site ([Baselines on the surrogate](04a-surrogate-baselines.md)), which is calibrated to DLR's published numbers but says nothing quantitative about LUMEN or the challenge. Every LUMEN result here is reported by others.
 - **Unread sources.** Several DLR papers are DLR-internal or paywalled and were used at abstract level only ([§7.11](07-references.md#711-unverified-or-blocked)). The most important of these are:
     - the EUCASS 2025 model-validation paper, which I did read in full via eucass.eu;
     - the SciTech 2023 turbopump hardware paper, abstract only.
