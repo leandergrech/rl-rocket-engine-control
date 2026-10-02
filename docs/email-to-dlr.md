@@ -11,7 +11,7 @@ Dear Kai, Jonas and Vincent,
 
 I was at the RL Bootcamp in Salzburg on 17 September and saw your pitch of the LUMEN Control Challenge; I presented the air-traffic challenge in the session right after it. You invited people to get in touch about access. Could I use the generalised LUMEN simulator, the evaluation service and the fine-tuning dataset, either now under whatever terms suit you or as soon as the public release is ready?
 
-A little about me: I work on reinforcement learning for physical control systems. I'm lead author on the RL-based bent-crystal alignment work at CERN (TWOCRYST/AICRYSCON) in the RL4AA community, I lead the single-agent RL work in the SESAR project TADA on air traffic control, and I teach a Master's course in AI/ML. Your problem has the structure I know best: a calibrated but imperfect simulator, expensive real steps and noisy sensors.
+I work on reinforcement learning for physical control systems, so your problem is close to home.
 
 What I'd like to do first is a careful set of baselines on the 2×2 task: a decoupled PI controller, PPO and SAC, and a small model-based agent, each with and without reference preview. I would share the results with you before publishing anything, and report any rough edges I find in the benchmark. Longer term I'm interested in the domain-adaptation and fault test cases, in particular how far the fine-tuning data can close the sim-to-real gap.
 
