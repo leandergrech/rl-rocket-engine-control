@@ -238,6 +238,33 @@
     draw(); onTheme(draw);
   };
 
+  /* ---------- 1b. the engine on the test stand: move the valves, fire it ---------- */
+  WIDGETS.stand = async (box) => {
+    const D = await loadData(), m = M(), p = D.params;
+    if (!window.ReStand) return;
+    let u = [p.x_tfv_ref, p.x_tov_ref], s = null;
+    const holder = el("div", {});
+    const fire = el("button", { class: "re-btn re-primary", type: "button" }, "Shut down");
+    box.append(el("div", { class: "re-controls" },
+      slider("TFV", 0.15, 0.65, 0.01, u[0], fmt(2), (v) => { u[0] = v; update(); }),
+      slider("TOV", 0.1, 0.5, 0.01, u[1], fmt(2), (v) => { u[1] = v; update(); }), fire), holder,
+      el("div", { class: "re-note" }, "LUMEN on DLR's P8.3 bench, side view, at the steady state the two valves hold (", el("b", {}, "surrogate"),
+        "). Open TOV and watch the flame turn bluer as the mixture ratio rises; open TFV and the pressure rises while the mixture ratio falls and the flame turns orange. Flame, steam and colours are coarse guesses; the ",
+        el("a", { href: root + "primer/8-lab/" }, "Engine Lab"), " replays whole episodes on the same stand."));
+    const stand = window.ReStand.create(holder, { state: "run", maxHeight: 380, runLabel: "steady state" });
+    fire.addEventListener("click", () => {
+      if (stand.state === "run" || stand.state === "ignition" || stand.state === "spinup") { stand.shutdown(); fire.textContent = "▶ Ignite"; }
+      else { stand.ignite(); fire.textContent = "Shut down"; }
+    });
+    function update() {
+      s = m.steadyState(u[0], u[1], p, s);
+      const o = m.outputs(s, p);
+      stand.setRow(Object.assign({}, o, { t: 0, t_turbine: o.t_rc, violations: { rof: o.rof > 4 || o.rof < 2.5, t_turbine: o.t_rc > 700, n_otp: o.n_otp > 28000, n_ftp: o.n_ftp > 50000, p_rc: o.p_rc < 46 } }));
+      stand.setOverlay(["LUMEN at P8.3 · steady state", `p_cc ${o.p_cc.toFixed(1)} bar · ROF ${o.rof.toFixed(2)}`]);
+    }
+    update();
+  };
+
   /* ---------- 2. the cycle: schematic with live steady-state flows ---------- */
   WIDGETS.cycle = async (box) => {
     const D = await loadData(), m = M(), p = D.params;

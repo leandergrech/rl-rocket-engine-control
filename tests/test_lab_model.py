@@ -2,7 +2,8 @@
 
 Runs the same scenarios in Python and in headless Chrome (skipped if Chrome is not installed):
 steady states, an open-loop valve step, the PI baseline closed loop on the evaluation profile and,
-for every exported policy in data/policies/, the network closed loop.
+for every exported policy in data/policies/, the network closed loop. It also runs the test-stand
+graphic (docs/javascripts/teststand.js) through a start and a shutdown.
 """
 
 from __future__ import annotations
@@ -27,6 +28,8 @@ POLICIES = sorted(p for p in (ROOT / "data" / "policies").glob("*.json") if not 
 
 HARNESS = """<!doctype html><html><body><pre id="out"></pre>
 <script src="{js}"></script>
+<script src="{stand}"></script>
+<div id="stand" style="width:900px"></div>
 <script>
 const F = {fixture};
 const M = window.LumenModel, p = F.params, trim = new M.TrimTable(F.trim);
@@ -45,6 +48,10 @@ try {{
     while (!ep.done && rows.length < 150) {{ const a = M.mlp(spec, ep.obs()); const s = ep.step(M.toValves(a)); rows.push([s.p_cc, s.rof, s.u_tfv, s.u_tov]); }}
     res.policies[name] = rows;
   }}
+  // the test-stand graphic runs through a whole sequence without throwing
+  const st = window.ReStand.create(document.getElementById("stand"), {{state: "off"}});
+  st.setRow(Object.assign({{}}, M.outputs(M.steadyState(0.3, 0.21, p), p), {{t: 0, p_ref: 40, rof_ref: 3.4, violations: {{rof: true}}}}));
+  st.ignite(); res.stand = [st.state]; st.setState("run"); st.shutdown(); res.stand.push(st.state);
 }} catch (e) {{ res.error = String(e.stack || e); }}
 document.getElementById("out").textContent = JSON.stringify(res);
 </script></body></html>"""
@@ -60,7 +67,8 @@ def browser(tmp_path_factory):
                "gains": PIGains.load().__dict__,
                "policies": {p.stem: json.loads(p.read_text()) for p in POLICIES}}
     page = tmp_path_factory.mktemp("lab") / "harness.html"
-    page.write_text(HARNESS.format(js=JS.as_uri(), fixture=json.dumps(fixture)))
+    stand = ROOT / "docs" / "javascripts" / "teststand.js"
+    page.write_text(HARNESS.format(js=JS.as_uri(), stand=stand.as_uri(), fixture=json.dumps(fixture)))
     cmd = [CHROME, "--headless=new", "--no-sandbox", "--disable-gpu", "--allow-file-access-from-files",
            "--virtual-time-budget=60000", "--dump-dom", page.as_uri()]
     html = subprocess.run(cmd, capture_output=True, text=True, timeout=300).stdout
@@ -68,6 +76,10 @@ def browser(tmp_path_factory):
     res = json.loads(html[start:end].replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">"))
     assert "error" not in res, res.get("error")
     return res
+
+
+def test_test_stand_runs_a_sequence(browser):
+    assert browser["stand"] == ["spinup", "shutdown"]
 
 
 def test_steady_states_agree(browser):

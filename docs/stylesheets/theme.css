@@ -254,3 +254,12 @@ body:has(.re-lab) .md-grid { max-width: 92rem; }
 svg.re-ic { fill: none !important; }
 .md-nav__link svg.re-ic { color: var(--brand-accent); opacity: 0.85; margin-right: 0.15rem; }
 .md-nav__link--active svg.re-ic, .md-nav__link:hover svg.re-ic { opacity: 1; }
+
+/* the test stand at the top of the Lab */
+.lab-stand-panel { margin-bottom: 0.8rem; }
+.lab-stand-panel .lab-title { font-size: 0.8rem; }
+.lab-stand { margin: 0 -0.2rem; }
+.lab-stand canvas.re-stand { border-radius: 8px; }
+.lab-transport { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.8rem; margin: 0.45rem 0 0.1rem; }
+.lab-tslider { flex: 1 1 12rem; accent-color: var(--brand-accent); }
+.lab-tlabel { font-size: 0.66rem; font-variant-numeric: tabular-nums; min-width: 5.2em; color: var(--md-default-fg-color); font-weight: 600; }

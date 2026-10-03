@@ -94,13 +94,79 @@
     const conSel = V.select("constraint", Object.entries(CON).map(([k, v]) => [k, v[0]]), cKey, (v) => { cKey = v; draw(); });
     const readout = el("div", { class: "re-readout" });
     const ink2 = () => V.css("--viz-ink-2");
+    // The test stand: the episode replayed on an animated LUMEN at P8.3 (teststand.js).
+    const standBox = el("div", { class: "lab-stand" });
+    const sPlay = el("button", { class: "re-btn re-primary", type: "button", onclick: () => toggleReplay() }, "▶ Hot fire");
+    const sSlider = el("input", { type: "range", min: 0, max: 300, step: 1, value: 0, class: "lab-tslider", "aria-label": "time in the episode" });
+    const sTime = el("span", { class: "lab-tlabel" }, "t = 0.0 s");
+    const sSpeed = V.select("speed", [["1", "1×"], ["2", "2×"], ["4", "4×"]], "1", () => {});
+    const sSeq = el("input", { type: "checkbox" }); sSeq.checked = true;
+    const standPanel = el("div", { class: "lab-panel lab-stand-panel" },
+      el("div", { class: "lab-title" }, "On the test stand: LUMEN at P8.3, live", sPlay),
+      standBox,
+      el("div", { class: "lab-transport" }, sTime, sSlider, sSpeed, el("label", { class: "re-ctl" }, sSeq, el("span", {}, "start-up and shutdown"))),
+      el("div", { class: "re-note" }, "The engine as DLR fires it at Lampoldshausen: horizontally, out of the open side of the P8.3 cell, with a water-spray ring around the plume (layout after the photos in Traudt et al., IAC 2024). Pumps, valves, flows, coolant temperature and the plume follow the surrogate at the time on the slider; hover any plot to look at that moment. ",
+        el("b", {}, "The flame, steam and colours are coarse guesses:"), " the plume grows with chamber pressure, turns orange when fuel-rich and violet-blue towards stoichiometric, and its shock diamonds spread with pressure. Below about 38 bar the jet starts to separate inside the nozzle (also a guess; the nozzle is designed for no separation at 60 bar)."));
     const main = el("div", { class: "lab-main" },
       el("div", { class: "lab-panel" }, el("div", { class: "lab-title" }, "Chamber pressure"), cP, V.legend([[ink2(), "set point", true], [V.series(1), "engine"], [V.css("--viz-muted"), "pinned runs"]])),
       el("div", { class: "lab-panel" }, el("div", { class: "lab-title" }, "Mixture ratio"), cR),
       el("div", { class: "lab-panel" }, el("div", { class: "lab-title" }, "Valves"), cU, V.legend([[V.series(1), "TFV position"], [V.series(2), "TOV position"], [ink2(), "commands", true]])),
       el("div", { class: "lab-panel" }, el("div", { class: "lab-title" }, conSel), cC),
       el("div", { class: "lab-panel" }, el("div", { class: "lab-title" }, "Reward per 0.1 s step"), cW, readout));
-    box.append(presets, story, el("div", { class: "lab-grid" }, side, main));
+    box.append(presets, story, standPanel, el("div", { class: "lab-grid" }, side, main));
+    const stand = window.ReStand ? window.ReStand.create(standBox, { state: "run", maxHeight: 520 }) : null;
+    if (stand) {  // until the first episode is ready: the engine at its 40 bar reference point
+      const o = M.outputs(M.steadyState(D.params.x_tfv_ref, D.params.x_tov_ref, D.params), D.params);
+      stand.setRow(Object.assign({}, o, { t: 0, p_ref: 40, rof_ref: 3.4, t_turbine: o.t_rc, violations: {} }));
+    }
+    const rp = { on: false, k: 0, last: 0, drawn: 0 };
+    function rowAt(i) { return run && run.rows.length ? run.rows[Math.max(0, Math.min(run.rows.length - 1, i))] : null; }
+    function epRow(ep) {  // the state before the first step, shaped like an episode row
+      const o = ep.out;
+      return Object.assign({}, o, { t: 0, p_ref: ep.pref[0], rof_ref: ep.rref[0], t_turbine: o.t_rc, m_turbines: o.m_tf + o.m_to, violations: {} });
+    }
+    function standShow(r) {
+      if (!stand || !r) return;
+      stand.setRow(r);
+      stand.setOverlay([`LUMEN at P8.3 · ${PRESETS[st.preset].label}`, `t = ${r.t.toFixed(1)} s · set point ${r.p_ref.toFixed(1)} bar, ROF ${r.rof_ref.toFixed(2)}`]);
+      sTime.textContent = `t = ${r.t.toFixed(1)} s`;
+    }
+    function stopReplay(label) { rp.on = false; sPlay.textContent = label || "▶ Hot fire"; }
+    function toggleReplay() {
+      if (!stand) return;
+      if (st.preset === "sandbox") { togglePlay(); return; }
+      if (rp.on) { stopReplay("▶ Continue"); return; }
+      if (!run || !run.rows.length) return;
+      const fromStart = rp.k >= run.rows.length - 1 || stand.state === "off" || stand.state === "purge" || rp.k === 0;
+      if (fromStart) rp.k = 0;
+      standShow(rowAt(0));
+      if (fromStart && sSeq.checked) { stand.setState("off"); stand.ignite(); } else stand.setState("run");
+      rp.on = true; rp.last = 0; sPlay.textContent = "❚❚ Pause";
+      requestAnimationFrame(tick);
+    }
+    function tick(ts) {
+      if (!rp.on) return;
+      const dt = rp.last ? Math.min(0.1, (ts - rp.last) / 1000) : 0;
+      rp.last = ts;
+      if (stand.state === "run") {
+        rp.k += dt / M.DT * +sSpeed.select.value;
+        const n = run.rows.length - 1;
+        if (rp.k >= n) { rp.k = n; stopReplay(); if (sSeq.checked) stand.shutdown(); }
+        const i = Math.floor(rp.k);
+        cursor = (i + 1) * M.DT; sSlider.value = i;
+        standShow(rowAt(i));
+        if (ts - rp.drawn > 70 || !rp.on) { rp.drawn = ts; draw(); }
+      }
+      if (rp.on) requestAnimationFrame(tick);
+    }
+    sSlider.addEventListener("input", () => {
+      if (st.preset === "sandbox" || !run) return;
+      stopReplay("▶ Continue");
+      rp.k = +sSlider.value;
+      cursor = (rp.k + 1) * M.DT;
+      if (stand && stand.state !== "run") stand.setState("run");
+      standShow(rowAt(rp.k)); draw();
+    });
 
     /* ---- simulation ---- */
     function params() {
@@ -144,19 +210,19 @@
       sand.rows = [];
       run = { rows: sand.rows, sandbox: true, n: sand.ep.nSteps, pref: prof.pref, rref: prof.rref };
     }
-    function stopPlay() { if (playing) { clearInterval(playing); playing = null; } play.textContent = "Play"; }
+    function stopPlay() { if (playing) { clearInterval(playing); playing = null; } play.textContent = "Play"; if (st.preset === "sandbox") sPlay.textContent = "▶ Hot fire"; }
     function togglePlay() {
       if (playing) { stopPlay(); return; }
-      if (!sand.ep || sand.ep.done) startSandbox();
-      play.textContent = "Pause";
+      if (!sand.ep || sand.ep.done) { startSandbox(); if (stand) { standShow(epRow(sand.ep)); if (sSeq.checked) { stand.setState("off"); stand.ignite(); } else stand.setState("run"); } }
+      play.textContent = "Pause"; sPlay.textContent = "❚❚ Pause";
       let last = performance.now(), acc = 0;
       playing = setInterval(() => {
         const now = performance.now();
         acc += (now - last) / 1000 * +speedSel.select.value; last = now;
         let moved = false;
         while (acc >= M.DT && !sand.ep.done) { acc -= M.DT; sand.rows.push(sand.ep.step(sand.u.slice())); moved = true; }
-        if (moved) draw();
-        if (sand.ep.done) stopPlay();
+        if (moved) { draw(); standShow(sand.rows[sand.rows.length - 1]); }
+        if (sand.ep.done) { stopPlay(); if (stand && sSeq.checked) stand.shutdown(); }
       }, 50);
     }
 
@@ -202,8 +268,13 @@
     let frames = {};
     function plot(c, o) { frames[c.__id || (c.__id = Math.random())] = V.plot(c, o); c.__frame = frames[c.__id]; }
     for (const c of [cP, cR, cU, cC, cW]) {
-      c.addEventListener("pointermove", (e) => { if (!c.__frame) return; const r = c.getBoundingClientRect(); cursor = Math.max(0, c.__frame.invX(e.clientX - r.left)); draw(); });
-      c.addEventListener("pointerleave", () => { cursor = null; draw(); });
+      c.addEventListener("pointermove", (e) => {
+        if (!c.__frame || rp.on) return;
+        const r = c.getBoundingClientRect(); cursor = Math.max(0, c.__frame.invX(e.clientX - r.left));
+        if (stand && stand.state === "run") standShow(rowAt(Math.round(cursor / M.DT) - 1));
+        draw();
+      });
+      c.addEventListener("pointerleave", () => { if (rp.on) return; cursor = null; standShow(rowAt(Math.floor(rp.k))); draw(); });
     }
 
     async function update() {
@@ -217,11 +288,16 @@
       else if (PRESETS[k].policy) ctlPanel.append(el("div", { class: "re-note" }, "An exported network, evaluated deterministically in your browser on the same observation vector as in training (92 numbers with preview, 60 without)."));
       else ctlPanel.append(el("div", { class: "re-note" }, "No feedback: the valve commands are fixed in advance."));
       profileSel.select.disabled = k === "tfv_step" || k === "tov_step";
-      if (k === "sandbox") { startSandbox(); draw(); return; }
+      stopReplay(); rp.k = 0; sSlider.disabled = k === "sandbox";
+      if (stand) stand.setRunLabel({ open: "open loop", fb: "closed loop, PI", rl: "closed loop, RL", you: "you drive" }[PRESETS[k].group]);
+      if (k === "sandbox") { startSandbox(); draw(); if (stand) { stand.setState("run"); standShow(epRow(sand.ep)); } return; }
       const res = await simulate();
       if (res.missing) { story.innerHTML += "<p><i>This policy has not been exported yet.</i></p>"; run = null; return; }
       run = res;
+      sSlider.max = run.rows.length - 1; sSlider.value = 0;
+      if (stand) { stand.setState("run"); standShow(rowAt(0)); }
       draw();
+      if (q.get("play") === "1" && !rp.played) { rp.played = true; toggleReplay(); }
     }
     V.onTheme(draw);
     update();

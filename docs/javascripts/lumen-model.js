@@ -327,7 +327,7 @@
       this.frames = [this.frame()].concat(this.frames.slice(0, -1));
       return { t: k * DT, p_cc: o.p_cc, rof: o.rof, p_ref: this.pref[k], rof_ref: this.rref[k], x_tfv: o.x_tfv, x_tov: o.x_tov,
         u_tfv: u[0], u_tov: u[1], du, t_turbine: o.t_rc, t_lng: o.t_lng, n_otp: o.n_otp, n_ftp: o.n_ftp, p_rc: o.p_rc,
-        m_turbines: o.m_tf + o.m_to, m_lox: o.m_lox, m_lng: o.m_lng, m_rc: o.m_rc, q_wall: o.q_wall,
+        m_turbines: o.m_tf + o.m_to, m_tf: o.m_tf, m_to: o.m_to, m_bpv: o.m_bpv, t_rc: o.t_rc, m_lox: o.m_lox, m_lng: o.m_lng, m_rc: o.m_rc, q_wall: o.q_wall,
         p_meas: this.meas[0], rof_meas: this.meas[1], violations: viol, n_viol: nViol, r_track: rTrack, reward };
     }
   }

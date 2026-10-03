@@ -8,6 +8,8 @@ icon: re/engine
 
     What are the two numbers the controller must hold, what do they mean physically, and why can't one valve set one number?
 
+<div class="re-widget" data-widget="stand" data-title="Interactive: LUMEN on the P8.3 test stand (move the valves)"></div>
+
 ## Thrust is chamber pressure
 
 A rocket engine burns an oxidiser and a fuel in a chamber and expands the hot gas through a converging–diverging nozzle. Thrust is momentum flux plus a pressure term at the nozzle exit ([Dresia thesis eq. 2.3](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=27)):
