@@ -376,7 +376,7 @@ Results relevant to learning-based control of liquid rocket engines, in date ord
 | 2026-06 | Univ. Auckland / ESA ACT / Univ. Bologna (Chaudhary et al.) — *adjacent* | Chance-constrained RL correction on an SCP trajectory, 2-D landing | 28.08 kg propellant overhead over the deterministic optimum, 100,000 samples | [arXiv:2606.13605](https://arxiv.org/abs/2606.13605) |
 | 2026-07 | DLR (Kurudzija et al.) | Transient system-level LUMEN-based simulator (preprint) | Errors "below 5 %" over the envelope (*A*) | [doi:10.2139/ssrn.6806858](https://doi.org/10.2139/ssrn.6806858) |
 | 2026-09-11 | DLR Institute of Space Propulsion | GitHub organisation `DLR-RA` created | 1 repository (profile README) on 2026-09-30 | [github.com/DLR-RA](https://github.com/DLR-RA) |
-| 2026-09-17 | DLR at RL Bootcamp 2026 | **LUMEN Control Challenge** pitched: Gymnasium env, TFV/TOV actions, PPO and SAC demos | ~15 s hardware tracking before a sensor failure; public release pending "legal issues" | [livestream 7:18:00](https://www.youtube.com/watch?v=CX8I88Pta_I&t=26280s) |
+| 2026-09-17 | DLR at RL Bootcamp 2026 | **LUMEN Control Challenge** pitched: Gymnasium env, TFV/TOV actions, PPO and SAC demos | ~15 s hardware tracking before a sensor failure; public release in preparation | [livestream 7:18:00](https://www.youtube.com/watch?v=CX8I88Pta_I&t=26280s) |
 
 Affiliations are taken from the title pages of the papers I opened. The Kaiser 2021 Würzburg thesis on RL throttling for landing is omitted because no primary copy could be opened ([§7.4](07-references.md#74-deep-rl-control-at-dlr-lampoldshausen)).
 
