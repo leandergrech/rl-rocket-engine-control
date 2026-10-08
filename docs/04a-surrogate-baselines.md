@@ -15,9 +15,9 @@ icon: re/surrogate
 
 !!! abstract "In short"
 
-    - **At 20 Hz without preview, the challenge's setting, PPO halves the PI's pressure error:** 1.04 % against 2.61 % for the reward-tuned PI, with no time over a limit against 1.4 s per episode. SAC, which reached only 170 k steps in its 55-minute budget on a shared CPU, is not converged (1.31 %) and chatters.
+    - **At 20 Hz without preview, the challenge's setting, both networks more than halve the PI's error:** SAC reaches 0.97 % on pressure and 0.38 % on mixture ratio, PPO 1.15 % and 1.01 %, against 2.61 % and 2.27 % for the reward-tuned PI, and they spend under 0.1 s per episode over a limit against the PI's 1.4 s. SAC, the algorithm DLR used on LUMEN, is the best 20 Hz controller here once it gets its full 600 k steps.
     - **A PI designed for a bandwidth beats the reward-tuned one on pressure** (2.30 % against 2.61 %) but loses on mixture ratio (3.14 % against 2.27 %). The tuned gains run the mixture-ratio loop at about 18° of phase margin: aggressive, and it pays off on this noise level. Textbook SIMC tuning on each loop's first-order model would put the pressure loop at 0.72 Hz, which is far too fast here; the best bandwidth on the training episodes is 0.15 Hz.
-    - **No controller wins every test case.** The networks win nominal tracking (cases 1–2), by a factor of 2 to 7. When the engine changes, drifts or wears a bearing (cases 4–6), the bandwidth-designed PI holds pressure as well as or better than they do, while the networks lose the mixture ratio (3.7–7 %): they have no integral action. When TOV sticks (case 7), every controller loses the mixture ratio, and the PIs also lose pressure.
+    - **No controller wins every test case.** The networks win nominal tracking (cases 1–2), by a factor of about 2 on pressure and up to 7 on mixture ratio. When the engine changes, drifts or wears a bearing (cases 4–6), the bandwidth-designed PI holds pressure as well as or better than they do, while the networks lose the mixture ratio (3.5–7.5 %): they have no integral action. When TOV sticks (case 7), every controller loses the mixture ratio, and the PIs also lose pressure.
     - **The earlier 10 Hz agents** keep their lesson: preview halves the pressure error (PPO 1.21 % → 0.52 %).
 
 ## Setup
@@ -38,10 +38,10 @@ The code is `src/rl_rocket_engine/surrogate/env.py`.
 | Feedforward only | the set point | valves from the trim table (the steady-state inverse of the engine); no measurement |
 | Decoupled PI, tuned | measured $p_{cc}$, $R_{OF}$, set point | feedforward plus two PI loops behind a static, gain-scheduled decoupler, with anti-windup ([equation](primer/equations.md#eq-pi)); four gains tuned by Nelder–Mead on 12 training episodes at 20 Hz |
 | Decoupled PI, bandwidth design | same | the same structure, gains from each loop's first-order-plus-dead-time model and a chosen bandwidth (SIMC; [equation](primer/equations.md#eq-pi-bandwidth)); here the bandwidths that scored best on the training episodes, 0.15 / 0.47 Hz |
-| PPO, SAC (20 Hz) | 4 stacked frames of 15 normalised values, no preview | SB3 PPO (2×128 tanh, 6 environments) and SAC (2×128 ReLU, 4 environments), $\gamma$ = 0.99, at most 55 min each |
+| PPO, SAC (20 Hz) | 4 stacked frames of 15 normalised values, no preview | SB3 PPO (2×128 tanh, 6 environments) and SAC (2×128 ReLU, 4 environments), $\gamma$ = 0.99; PPO 6 M steps, SAC 600 k steps, each capped at 55 min |
 | Earlier: PPO, SAC (10 Hz), no preview / preview | 4 stacked frames of 15 / 23 values; preview adds the next 0.5 s of set points | the same networks at 0.1 s, $\gamma$ = 0.98; PPO 3 M steps, SAC 450–500 k steps |
 
-Every learned policy was trained on the nominal engine, in under an hour on a laptop CPU. The tables and charts show seed 0; PPO was also trained with a second seed ([below](#a-second-seed)). All controllers are evaluated deterministically on the same 20 held-out episodes (seeds 1000–1019) with `python scripts/evaluate.py`. The networks run in the [Engine Lab](primer/8-lab.md), in your browser, with the same arithmetic.
+Every learned policy was trained on the nominal engine, on a CPU, in under an hour: the 10 Hz agents on a laptop, the 20 Hz PPO and SAC side by side on one rented 32-thread desktop CPU (Intel i9-14900KF), in 21 and 24 min. The tables and charts show seed 0; PPO was also trained with a second seed ([below](#a-second-seed)). All controllers are evaluated deterministically on the same 20 held-out episodes (seeds 1000–1019) with `python scripts/evaluate.py`. The networks run in the [Engine Lab](primer/8-lab.md), in your browser, with the same arithmetic.
 
 ## Results at 20 Hz, no preview {#results-20-hz}
 
@@ -51,8 +51,8 @@ Every learned policy was trained on the nominal engine, in under an hour on a la
 | Open-loop feedforward | 4.62 | 4.25 | 18 % / 46 % | 1.0 / 3.0 | 0.69 | 0.83 | 4.40 / 5.06 | – |
 | Decoupled PI, tuned | 2.61 | 2.27 | 61 % / 75 % | 3.7 / 3.6 | 3.63 | 1.42 | 2.28 / 1.83 | Nelder–Mead, 12 episodes |
 | Decoupled PI, bandwidth design | 2.30 | 3.14 | 54 % / 43 % | 3.1 / 4.0 | 3.25 | 1.91 | 2.01 / 2.63 | SIMC rules at 0.15 / 0.47 Hz |
-| PPO (20 Hz) | 1.04 | 0.82 | 96 % / 93 % | 1.0 / 1.3 | 3.72 | 0.00 | 1.16 / 2.07 | 2.7 M steps, 55 min |
-| SAC (20 Hz) | 1.31 | 1.23 | 96 % / 89 % | 1.3 / 4.8 | 65.99 | 0.00 | 1.59 / 2.45 | 170 k steps, 55 min |
+| PPO (20 Hz) | 1.15 | 1.01 | 96 % / 89 % | 1.0 / 1.7 | 3.21 | 0.07 | 1.24 / 2.56 | 6.0 M steps, 21 min |
+| SAC (20 Hz) | 0.97 | 0.38 | 96 % / 96 % | 0.8 / 0.9 | 6.29 | 0.02 | 1.47 / 1.93 | 600 k steps, 24 min |
 
 Mean over the same 20 held-out episodes as before (seeds 1000–1019). Settling: time to stay within ±2 % of a new set point after a step. Over a limit: seconds per episode with at least one constraint of thesis Table 5.1 broken (seconds, not steps, so the 10 and 20 Hz rows compare). Randomised: the same episodes with the engine and sensors drawn from DLR's ranges.
 {: .caption }
@@ -114,29 +114,29 @@ Mean over the same 20 held-out episodes as before (seeds 1000–1019). Settling:
     "controller": "PPO (20 Hz)",
     "rate": "20 Hz",
     "condition": "nominal",
-    "mape_p": 1.041,
-    "mape_rof": 0.82
+    "mape_p": 1.149,
+    "mape_rof": 1.014
    },
    {
     "controller": "PPO (20 Hz)",
     "rate": "20 Hz",
     "condition": "randomised",
-    "mape_p": 1.162,
-    "mape_rof": 2.073
+    "mape_p": 1.242,
+    "mape_rof": 2.555
    },
    {
     "controller": "SAC (20 Hz)",
     "rate": "20 Hz",
     "condition": "nominal",
-    "mape_p": 1.311,
-    "mape_rof": 1.231
+    "mape_p": 0.973,
+    "mape_rof": 0.383
    },
    {
     "controller": "SAC (20 Hz)",
     "rate": "20 Hz",
     "condition": "randomised",
-    "mape_p": 1.593,
-    "mape_rof": 2.446
+    "mape_p": 1.469,
+    "mape_rof": 1.926
    },
    {
     "controller": "PPO, preview (10 Hz)",
@@ -328,2073 +328,2409 @@ Mean over the same 20 held-out episodes as before (seeds 1000–1019). Settling:
   "values": [
    {
     "agent": "PPO (20 Hz)",
-    "minutes": 0.12,
+    "minutes": 0.04,
     "steps": 3600,
     "ret": -500.2
    },
    {
     "agent": "PPO (20 Hz)",
-    "minutes": 0.24,
-    "steps": 14400,
-    "ret": -673.6
+    "minutes": 0.12,
+    "steps": 32400,
+    "ret": -663.1
    },
    {
     "agent": "PPO (20 Hz)",
-    "minutes": 0.41,
-    "steps": 28800,
-    "ret": -654.9
+    "minutes": 0.22,
+    "steps": 61200,
+    "ret": -630.7
    },
    {
     "agent": "PPO (20 Hz)",
-    "minutes": 0.58,
-    "steps": 43200,
-    "ret": -622.5
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 0.71,
-    "steps": 54000,
-    "ret": -609.7
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 0.87,
-    "steps": 68400,
-    "ret": -579.0
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 1.02,
-    "steps": 82800,
-    "ret": -553.2
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 1.13,
+    "minutes": 0.33,
     "steps": 93600,
-    "ret": -576.9
+    "ret": -686.2
    },
    {
     "agent": "PPO (20 Hz)",
-    "minutes": 1.3,
-    "steps": 108000,
-    "ret": -586.2
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 1.46,
+    "minutes": 0.43,
     "steps": 122400,
-    "ret": -518.2
+    "ret": -639.0
    },
    {
     "agent": "PPO (20 Hz)",
-    "minutes": 1.59,
-    "steps": 133200,
-    "ret": -472.1
+    "minutes": 0.53,
+    "steps": 151200,
+    "ret": -502.4
    },
    {
     "agent": "PPO (20 Hz)",
-    "minutes": 1.73,
-    "steps": 147600,
-    "ret": -395.6
+    "minutes": 0.64,
+    "steps": 183600,
+    "ret": -424.6
    },
    {
     "agent": "PPO (20 Hz)",
-    "minutes": 1.88,
-    "steps": 162000,
-    "ret": -363.6
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 1.99,
-    "steps": 172800,
-    "ret": -331.4
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 2.13,
-    "steps": 187200,
-    "ret": -309.3
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 2.3,
-    "steps": 201600,
-    "ret": -291.4
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 2.42,
+    "minutes": 0.74,
     "steps": 212400,
-    "ret": -267.3
+    "ret": -280.9
    },
    {
     "agent": "PPO (20 Hz)",
-    "minutes": 2.57,
-    "steps": 226800,
-    "ret": -240.8
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 2.71,
+    "minutes": 0.85,
     "steps": 241200,
-    "ret": -240.1
+    "ret": -257.3
    },
    {
     "agent": "PPO (20 Hz)",
-    "minutes": 2.83,
-    "steps": 252000,
-    "ret": -226.6
+    "minutes": 0.96,
+    "steps": 273600,
+    "ret": -252.8
    },
    {
     "agent": "PPO (20 Hz)",
-    "minutes": 2.97,
-    "steps": 266400,
-    "ret": -212.4
+    "minutes": 1.06,
+    "steps": 302400,
+    "ret": -232.1
    },
    {
     "agent": "PPO (20 Hz)",
-    "minutes": 3.13,
-    "steps": 280800,
-    "ret": -200.8
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 3.25,
-    "steps": 291600,
-    "ret": -200.1
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 3.41,
-    "steps": 306000,
-    "ret": -213.6
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 3.58,
-    "steps": 320400,
-    "ret": -222.2
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 3.7,
+    "minutes": 1.16,
     "steps": 331200,
-    "ret": -221.1
+    "ret": -204.3
    },
    {
     "agent": "PPO (20 Hz)",
-    "minutes": 3.86,
-    "steps": 345600,
-    "ret": -207.4
+    "minutes": 1.27,
+    "steps": 363600,
+    "ret": -193.2
    },
    {
     "agent": "PPO (20 Hz)",
-    "minutes": 4.03,
-    "steps": 360000,
-    "ret": -188.3
+    "minutes": 1.37,
+    "steps": 392400,
+    "ret": -163.9
    },
    {
     "agent": "PPO (20 Hz)",
-    "minutes": 4.15,
-    "steps": 370800,
-    "ret": -173.5
+    "minutes": 1.47,
+    "steps": 421200,
+    "ret": -160.1
    },
    {
     "agent": "PPO (20 Hz)",
-    "minutes": 4.33,
-    "steps": 385200,
-    "ret": -173.7
+    "minutes": 1.58,
+    "steps": 453600,
+    "ret": -164.9
    },
    {
     "agent": "PPO (20 Hz)",
-    "minutes": 4.49,
-    "steps": 399600,
-    "ret": -184.4
+    "minutes": 1.68,
+    "steps": 482400,
+    "ret": -162.9
    },
    {
     "agent": "PPO (20 Hz)",
-    "minutes": 4.61,
-    "steps": 410400,
-    "ret": -184.1
+    "minutes": 1.78,
+    "steps": 511200,
+    "ret": -156.1
    },
    {
     "agent": "PPO (20 Hz)",
-    "minutes": 4.79,
-    "steps": 424800,
-    "ret": -176.8
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 4.95,
-    "steps": 439200,
-    "ret": -178.5
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 5.08,
-    "steps": 450000,
-    "ret": -156.8
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 5.25,
-    "steps": 464400,
-    "ret": -176.6
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 5.42,
-    "steps": 478800,
-    "ret": -179.1
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 5.57,
-    "steps": 489600,
-    "ret": -176.6
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 5.74,
-    "steps": 504000,
-    "ret": -172.7
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 5.89,
-    "steps": 518400,
-    "ret": -152.5
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 6.03,
-    "steps": 529200,
-    "ret": -154.2
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 6.19,
+    "minutes": 1.89,
     "steps": 543600,
-    "ret": -148.1
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 6.37,
-    "steps": 558000,
-    "ret": -157.1
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 6.51,
-    "steps": 568800,
-    "ret": -146.8
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 6.66,
-    "steps": 583200,
-    "ret": -137.7
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 6.83,
-    "steps": 597600,
-    "ret": -139.7
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 6.95,
-    "steps": 608400,
-    "ret": -147.0
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 7.12,
-    "steps": 622800,
     "ret": -147.7
    },
    {
     "agent": "PPO (20 Hz)",
-    "minutes": 7.3,
-    "steps": 637200,
-    "ret": -160.5
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 7.41,
-    "steps": 648000,
-    "ret": -151.1
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 7.58,
-    "steps": 662400,
-    "ret": -138.7
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 7.75,
-    "steps": 676800,
-    "ret": -130.4
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 7.86,
-    "steps": 687600,
-    "ret": -117.1
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 8.03,
-    "steps": 702000,
-    "ret": -120.9
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 8.19,
-    "steps": 716400,
-    "ret": -118.5
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 8.32,
-    "steps": 727200,
-    "ret": -125.5
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 8.48,
-    "steps": 741600,
-    "ret": -122.8
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 8.64,
-    "steps": 756000,
-    "ret": -127.2
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 8.75,
-    "steps": 766800,
-    "ret": -124.4
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 8.9,
-    "steps": 781200,
-    "ret": -123.2
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 9.05,
-    "steps": 795600,
-    "ret": -123.2
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 9.18,
-    "steps": 806400,
-    "ret": -134.1
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 9.34,
-    "steps": 820800,
-    "ret": -135.9
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 9.5,
-    "steps": 835200,
-    "ret": -147.5
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 9.62,
-    "steps": 846000,
-    "ret": -158.8
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 9.8,
-    "steps": 860400,
-    "ret": -144.1
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 9.98,
-    "steps": 874800,
-    "ret": -152.2
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 10.19,
-    "steps": 885600,
-    "ret": -137.5
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 10.54,
-    "steps": 900000,
-    "ret": -122.8
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 10.88,
-    "steps": 914400,
-    "ret": -119.2
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 11.17,
-    "steps": 925200,
-    "ret": -104.6
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 11.42,
-    "steps": 939600,
-    "ret": -105.3
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 11.71,
-    "steps": 954000,
-    "ret": -124.7
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 11.97,
-    "steps": 964800,
-    "ret": -121.2
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 12.26,
-    "steps": 979200,
-    "ret": -129.3
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 12.58,
-    "steps": 993600,
-    "ret": -135.5
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 12.79,
-    "steps": 1004400,
-    "ret": -122.1
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 13.09,
-    "steps": 1018800,
-    "ret": -137.2
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 13.39,
-    "steps": 1033200,
-    "ret": -121.8
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 13.6,
-    "steps": 1044000,
-    "ret": -112.8
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 13.88,
-    "steps": 1058400,
-    "ret": -99.9
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 14.17,
-    "steps": 1072800,
-    "ret": -81.7
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 14.38,
-    "steps": 1083600,
-    "ret": -89.5
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 14.66,
-    "steps": 1098000,
-    "ret": -92.7
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 14.94,
-    "steps": 1112400,
-    "ret": -99.2
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 15.14,
-    "steps": 1123200,
-    "ret": -113.1
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 15.42,
-    "steps": 1137600,
-    "ret": -118.6
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 15.66,
-    "steps": 1152000,
-    "ret": -121.5
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 16.05,
-    "steps": 1162800,
-    "ret": -126.2
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 16.49,
-    "steps": 1177200,
-    "ret": -122.2
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 16.63,
-    "steps": 1191600,
-    "ret": -121.8
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 16.75,
-    "steps": 1202400,
-    "ret": -128.0
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 16.92,
-    "steps": 1216800,
-    "ret": -117.9
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 17.06,
-    "steps": 1231200,
-    "ret": -114.0
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 17.18,
-    "steps": 1242000,
-    "ret": -123.7
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 17.32,
-    "steps": 1256400,
-    "ret": -116.0
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 17.47,
-    "steps": 1270800,
-    "ret": -118.3
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 17.57,
-    "steps": 1281600,
-    "ret": -129.5
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 17.71,
-    "steps": 1296000,
-    "ret": -132.5
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 17.86,
-    "steps": 1310400,
-    "ret": -129.5
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 17.98,
-    "steps": 1321200,
-    "ret": -133.6
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 18.13,
-    "steps": 1335600,
-    "ret": -118.5
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 18.28,
-    "steps": 1350000,
-    "ret": -97.1
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 18.39,
-    "steps": 1360800,
-    "ret": -102.5
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 18.53,
-    "steps": 1375200,
-    "ret": -97.0
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 18.68,
-    "steps": 1389600,
-    "ret": -109.5
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 18.79,
-    "steps": 1400400,
-    "ret": -128.4
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 18.94,
-    "steps": 1414800,
-    "ret": -119.5
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 19.08,
-    "steps": 1429200,
-    "ret": -122.6
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 19.18,
-    "steps": 1440000,
-    "ret": -109.2
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 19.34,
-    "steps": 1454400,
-    "ret": -102.6
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 19.49,
-    "steps": 1468800,
-    "ret": -101.6
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 19.6,
-    "steps": 1479600,
-    "ret": -97.4
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 19.75,
-    "steps": 1494000,
-    "ret": -111.7
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 19.89,
-    "steps": 1508400,
-    "ret": -99.5
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 20.01,
-    "steps": 1519200,
-    "ret": -108.1
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 20.16,
-    "steps": 1533600,
-    "ret": -109.1
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 20.31,
-    "steps": 1548000,
-    "ret": -99.0
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 20.43,
-    "steps": 1558800,
-    "ret": -101.2
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 20.59,
-    "steps": 1573200,
-    "ret": -101.9
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 20.73,
-    "steps": 1587600,
-    "ret": -108.6
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 20.86,
-    "steps": 1598400,
-    "ret": -104.2
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 21.02,
-    "steps": 1612800,
-    "ret": -108.0
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 21.18,
-    "steps": 1627200,
-    "ret": -102.7
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 21.3,
-    "steps": 1638000,
-    "ret": -101.6
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 21.44,
-    "steps": 1652400,
-    "ret": -103.3
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 21.6,
-    "steps": 1666800,
-    "ret": -102.1
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 21.71,
-    "steps": 1677600,
-    "ret": -103.3
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 21.85,
-    "steps": 1692000,
-    "ret": -97.6
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 21.99,
-    "steps": 1706400,
-    "ret": -99.8
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 22.1,
-    "steps": 1717200,
-    "ret": -96.0
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 22.25,
-    "steps": 1731600,
-    "ret": -97.9
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 22.39,
-    "steps": 1746000,
-    "ret": -105.3
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 22.5,
-    "steps": 1756800,
-    "ret": -104.7
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 22.66,
-    "steps": 1771200,
-    "ret": -108.5
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 22.81,
-    "steps": 1785600,
-    "ret": -102.7
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 22.92,
-    "steps": 1796400,
-    "ret": -94.7
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 23.08,
-    "steps": 1810800,
-    "ret": -97.7
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 23.23,
-    "steps": 1825200,
-    "ret": -107.8
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 23.35,
-    "steps": 1836000,
-    "ret": -112.1
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 23.52,
-    "steps": 1850400,
-    "ret": -124.4
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 23.68,
-    "steps": 1864800,
-    "ret": -124.9
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 23.8,
-    "steps": 1875600,
-    "ret": -113.7
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 23.96,
-    "steps": 1890000,
-    "ret": -124.2
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 24.1,
-    "steps": 1904400,
-    "ret": -112.8
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 24.22,
-    "steps": 1915200,
-    "ret": -126.3
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 24.39,
-    "steps": 1929600,
-    "ret": -130.1
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 24.55,
-    "steps": 1944000,
-    "ret": -128.6
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 24.67,
-    "steps": 1954800,
-    "ret": -138.0
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 24.83,
-    "steps": 1969200,
-    "ret": -120.8
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 24.98,
-    "steps": 1983600,
-    "ret": -124.5
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 25.1,
-    "steps": 1994400,
-    "ret": -133.0
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 25.26,
-    "steps": 2008800,
-    "ret": -128.8
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 25.42,
-    "steps": 2023200,
-    "ret": -138.2
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 25.55,
-    "steps": 2034000,
+    "minutes": 1.99,
+    "steps": 572400,
     "ret": -132.7
    },
    {
     "agent": "PPO (20 Hz)",
-    "minutes": 25.71,
-    "steps": 2048400,
-    "ret": -119.8
+    "minutes": 2.09,
+    "steps": 601200,
+    "ret": -119.2
    },
    {
     "agent": "PPO (20 Hz)",
-    "minutes": 25.87,
-    "steps": 2062800,
-    "ret": -121.2
+    "minutes": 2.21,
+    "steps": 633600,
+    "ret": -118.3
    },
    {
     "agent": "PPO (20 Hz)",
-    "minutes": 25.98,
-    "steps": 2073600,
-    "ret": -115.8
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 26.14,
-    "steps": 2088000,
-    "ret": -116.0
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 26.31,
-    "steps": 2102400,
-    "ret": -110.6
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 26.44,
-    "steps": 2113200,
-    "ret": -117.5
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 26.61,
-    "steps": 2127600,
-    "ret": -124.5
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 26.79,
-    "steps": 2142000,
-    "ret": -122.5
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 26.91,
-    "steps": 2152800,
-    "ret": -126.3
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 27.08,
-    "steps": 2167200,
-    "ret": -113.5
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 27.26,
-    "steps": 2181600,
-    "ret": -104.7
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 27.37,
-    "steps": 2192400,
-    "ret": -114.6
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 27.52,
-    "steps": 2206800,
-    "ret": -107.0
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 27.68,
-    "steps": 2221200,
-    "ret": -110.0
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 27.78,
-    "steps": 2232000,
-    "ret": -103.0
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 27.93,
-    "steps": 2246400,
-    "ret": -85.3
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 28.08,
-    "steps": 2260800,
-    "ret": -90.1
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 28.24,
-    "steps": 2271600,
-    "ret": -99.7
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 29.15,
-    "steps": 2286000,
-    "ret": -96.3
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 30.01,
-    "steps": 2300400,
-    "ret": -105.8
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 30.57,
-    "steps": 2311200,
-    "ret": -99.2
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 31.33,
-    "steps": 2325600,
-    "ret": -87.2
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 32.07,
-    "steps": 2340000,
-    "ret": -99.4
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 32.84,
-    "steps": 2350800,
-    "ret": -91.0
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 33.71,
-    "steps": 2365200,
-    "ret": -103.5
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 34.76,
-    "steps": 2379600,
-    "ret": -109.1
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 35.27,
-    "steps": 2390400,
-    "ret": -105.7
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 35.56,
-    "steps": 2404800,
-    "ret": -116.1
-   },
-   {
-    "agent": "PPO (20 Hz)",
-    "minutes": 36.19,
-    "steps": 2419200,
+    "minutes": 2.31,
+    "steps": 662400,
     "ret": -121.9
    },
    {
     "agent": "PPO (20 Hz)",
-    "minutes": 36.99,
-    "steps": 2430000,
-    "ret": -116.3
+    "minutes": 2.4,
+    "steps": 691200,
+    "ret": -118.2
    },
    {
     "agent": "PPO (20 Hz)",
-    "minutes": 37.98,
-    "steps": 2444400,
+    "minutes": 2.52,
+    "steps": 723600,
+    "ret": -120.6
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 2.62,
+    "steps": 752400,
+    "ret": -126.4
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 2.72,
+    "steps": 781200,
+    "ret": -117.0
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 2.83,
+    "steps": 813600,
+    "ret": -116.6
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 2.93,
+    "steps": 842400,
+    "ret": -113.0
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 3.03,
+    "steps": 871200,
+    "ret": -105.4
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 3.14,
+    "steps": 903600,
+    "ret": -106.1
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 3.24,
+    "steps": 932400,
+    "ret": -110.7
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 3.34,
+    "steps": 961200,
     "ret": -111.4
    },
    {
     "agent": "PPO (20 Hz)",
-    "minutes": 39.03,
-    "steps": 2458800,
-    "ret": -114.0
+    "minutes": 3.45,
+    "steps": 993600,
+    "ret": -117.1
    },
    {
     "agent": "PPO (20 Hz)",
-    "minutes": 39.73,
-    "steps": 2469600,
-    "ret": -100.9
+    "minutes": 3.55,
+    "steps": 1022400,
+    "ret": -113.3
    },
    {
     "agent": "PPO (20 Hz)",
-    "minutes": 40.97,
-    "steps": 2484000,
-    "ret": -93.9
+    "minutes": 3.65,
+    "steps": 1051200,
+    "ret": -107.6
    },
    {
     "agent": "PPO (20 Hz)",
-    "minutes": 42.04,
-    "steps": 2498400,
-    "ret": -93.1
+    "minutes": 3.76,
+    "steps": 1083600,
+    "ret": -115.5
    },
    {
     "agent": "PPO (20 Hz)",
-    "minutes": 42.77,
-    "steps": 2509200,
-    "ret": -90.5
+    "minutes": 3.86,
+    "steps": 1112400,
+    "ret": -105.8
    },
    {
     "agent": "PPO (20 Hz)",
-    "minutes": 43.85,
-    "steps": 2523600,
-    "ret": -91.1
+    "minutes": 3.96,
+    "steps": 1141200,
+    "ret": -104.6
    },
    {
     "agent": "PPO (20 Hz)",
-    "minutes": 44.39,
-    "steps": 2538000,
-    "ret": -101.2
+    "minutes": 4.07,
+    "steps": 1173600,
+    "ret": -108.0
    },
    {
     "agent": "PPO (20 Hz)",
-    "minutes": 45.09,
-    "steps": 2548800,
+    "minutes": 4.17,
+    "steps": 1202400,
+    "ret": -93.0
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 4.27,
+    "steps": 1231200,
+    "ret": -94.2
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 4.38,
+    "steps": 1263600,
+    "ret": -97.8
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 4.48,
+    "steps": 1292400,
+    "ret": -85.7
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 4.58,
+    "steps": 1321200,
+    "ret": -92.8
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 4.69,
+    "steps": 1353600,
+    "ret": -93.0
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 4.79,
+    "steps": 1382400,
+    "ret": -95.4
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 4.89,
+    "steps": 1411200,
+    "ret": -100.4
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 5.0,
+    "steps": 1443600,
+    "ret": -103.2
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 5.1,
+    "steps": 1472400,
+    "ret": -105.0
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 5.2,
+    "steps": 1501200,
+    "ret": -117.0
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 5.31,
+    "steps": 1533600,
+    "ret": -117.5
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 5.41,
+    "steps": 1562400,
+    "ret": -117.2
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 5.51,
+    "steps": 1591200,
+    "ret": -116.3
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 5.62,
+    "steps": 1623600,
+    "ret": -100.8
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 5.72,
+    "steps": 1652400,
+    "ret": -102.0
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 5.82,
+    "steps": 1681200,
+    "ret": -107.0
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 5.94,
+    "steps": 1713600,
+    "ret": -107.6
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 6.04,
+    "steps": 1742400,
+    "ret": -105.0
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 6.13,
+    "steps": 1771200,
+    "ret": -115.8
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 6.24,
+    "steps": 1803600,
+    "ret": -99.8
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 6.35,
+    "steps": 1832400,
+    "ret": -111.6
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 6.44,
+    "steps": 1861200,
+    "ret": -111.3
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 6.56,
+    "steps": 1893600,
+    "ret": -100.2
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 6.66,
+    "steps": 1922400,
+    "ret": -116.5
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 6.76,
+    "steps": 1951200,
+    "ret": -107.4
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 6.87,
+    "steps": 1983600,
+    "ret": -119.6
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 6.97,
+    "steps": 2012400,
+    "ret": -124.9
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 7.07,
+    "steps": 2041200,
+    "ret": -123.6
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 7.18,
+    "steps": 2073600,
+    "ret": -115.1
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 7.28,
+    "steps": 2102400,
+    "ret": -109.2
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 7.38,
+    "steps": 2131200,
     "ret": -114.4
    },
    {
     "agent": "PPO (20 Hz)",
-    "minutes": 46.16,
-    "steps": 2563200,
-    "ret": -108.4
+    "minutes": 7.49,
+    "steps": 2163600,
+    "ret": -113.8
    },
    {
     "agent": "PPO (20 Hz)",
-    "minutes": 47.29,
-    "steps": 2577600,
-    "ret": -100.5
+    "minutes": 7.59,
+    "steps": 2192400,
+    "ret": -118.8
    },
    {
     "agent": "PPO (20 Hz)",
-    "minutes": 48.02,
-    "steps": 2588400,
+    "minutes": 7.69,
+    "steps": 2221200,
+    "ret": -114.7
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 7.8,
+    "steps": 2253600,
+    "ret": -101.1
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 7.9,
+    "steps": 2282400,
+    "ret": -102.4
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 8.0,
+    "steps": 2311200,
+    "ret": -97.8
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 8.11,
+    "steps": 2343600,
+    "ret": -100.8
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 8.21,
+    "steps": 2372400,
     "ret": -100.0
    },
    {
     "agent": "PPO (20 Hz)",
-    "minutes": 49.05,
-    "steps": 2602800,
-    "ret": -90.3
+    "minutes": 8.31,
+    "steps": 2401200,
+    "ret": -105.2
    },
    {
     "agent": "PPO (20 Hz)",
-    "minutes": 50.03,
-    "steps": 2617200,
-    "ret": -103.1
+    "minutes": 8.43,
+    "steps": 2433600,
+    "ret": -119.0
    },
    {
     "agent": "PPO (20 Hz)",
-    "minutes": 50.75,
-    "steps": 2628000,
-    "ret": -121.3
+    "minutes": 8.53,
+    "steps": 2462400,
+    "ret": -129.2
    },
    {
     "agent": "PPO (20 Hz)",
-    "minutes": 51.71,
+    "minutes": 8.63,
+    "steps": 2491200,
+    "ret": -135.5
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 8.74,
+    "steps": 2523600,
+    "ret": -121.2
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 8.84,
+    "steps": 2552400,
+    "ret": -121.7
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 8.94,
+    "steps": 2581200,
+    "ret": -100.9
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 9.05,
+    "steps": 2613600,
+    "ret": -99.4
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 9.15,
     "steps": 2642400,
-    "ret": -128.4
+    "ret": -106.5
    },
    {
     "agent": "PPO (20 Hz)",
-    "minutes": 52.47,
-    "steps": 2656800,
+    "minutes": 9.25,
+    "steps": 2671200,
+    "ret": -115.5
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 9.37,
+    "steps": 2703600,
+    "ret": -126.3
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 9.47,
+    "steps": 2732400,
+    "ret": -126.0
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 9.56,
+    "steps": 2761200,
+    "ret": -112.4
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 9.68,
+    "steps": 2793600,
+    "ret": -90.1
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 9.78,
+    "steps": 2822400,
+    "ret": -86.7
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 9.87,
+    "steps": 2851200,
+    "ret": -84.0
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 9.98,
+    "steps": 2883600,
+    "ret": -93.9
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 10.09,
+    "steps": 2912400,
+    "ret": -97.9
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 10.19,
+    "steps": 2941200,
+    "ret": -111.1
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 10.3,
+    "steps": 2973600,
     "ret": -132.3
    },
    {
     "agent": "PPO (20 Hz)",
-    "minutes": 52.66,
-    "steps": 2667600,
-    "ret": -117.6
+    "minutes": 10.4,
+    "steps": 3002400,
+    "ret": -130.7
    },
    {
     "agent": "PPO (20 Hz)",
-    "minutes": 53.36,
-    "steps": 2682000,
-    "ret": -109.5
+    "minutes": 10.49,
+    "steps": 3031200,
+    "ret": -138.7
    },
    {
     "agent": "PPO (20 Hz)",
-    "minutes": 54.28,
-    "steps": 2696400,
-    "ret": -98.9
+    "minutes": 10.61,
+    "steps": 3063600,
+    "ret": -123.3
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 10.71,
+    "steps": 3092400,
+    "ret": -107.6
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 10.8,
+    "steps": 3121200,
+    "ret": -107.4
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 10.91,
+    "steps": 3153600,
+    "ret": -119.3
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 11.01,
+    "steps": 3182400,
+    "ret": -129.9
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 11.11,
+    "steps": 3211200,
+    "ret": -136.6
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 11.22,
+    "steps": 3243600,
+    "ret": -138.4
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 11.32,
+    "steps": 3272400,
+    "ret": -147.8
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 11.42,
+    "steps": 3301200,
+    "ret": -152.9
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 11.54,
+    "steps": 3333600,
+    "ret": -151.0
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 11.64,
+    "steps": 3362400,
+    "ret": -164.1
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 11.74,
+    "steps": 3391200,
+    "ret": -159.5
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 11.85,
+    "steps": 3423600,
+    "ret": -163.1
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 11.94,
+    "steps": 3452400,
+    "ret": -157.4
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 12.05,
+    "steps": 3481200,
+    "ret": -145.3
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 12.16,
+    "steps": 3513600,
+    "ret": -120.3
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 12.26,
+    "steps": 3542400,
+    "ret": -102.0
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 12.36,
+    "steps": 3571200,
+    "ret": -91.6
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 12.47,
+    "steps": 3603600,
+    "ret": -110.4
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 12.57,
+    "steps": 3632400,
+    "ret": -116.2
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 12.67,
+    "steps": 3661200,
+    "ret": -126.9
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 12.78,
+    "steps": 3693600,
+    "ret": -142.6
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 12.88,
+    "steps": 3722400,
+    "ret": -115.3
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 12.98,
+    "steps": 3751200,
+    "ret": -112.0
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 13.09,
+    "steps": 3783600,
+    "ret": -99.6
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 13.19,
+    "steps": 3812400,
+    "ret": -111.7
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 13.29,
+    "steps": 3841200,
+    "ret": -108.2
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 13.4,
+    "steps": 3873600,
+    "ret": -115.7
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 13.5,
+    "steps": 3902400,
+    "ret": -119.8
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 13.6,
+    "steps": 3931200,
+    "ret": -93.4
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 13.72,
+    "steps": 3963600,
+    "ret": -111.0
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 13.82,
+    "steps": 3992400,
+    "ret": -112.6
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 13.91,
+    "steps": 4021200,
+    "ret": -131.5
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 14.03,
+    "steps": 4053600,
+    "ret": -142.5
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 14.13,
+    "steps": 4082400,
+    "ret": -143.5
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 14.23,
+    "steps": 4111200,
+    "ret": -139.5
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 14.34,
+    "steps": 4143600,
+    "ret": -126.5
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 14.44,
+    "steps": 4172400,
+    "ret": -127.8
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 14.54,
+    "steps": 4201200,
+    "ret": -140.9
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 14.65,
+    "steps": 4233600,
+    "ret": -138.7
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 14.75,
+    "steps": 4262400,
+    "ret": -149.8
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 14.85,
+    "steps": 4291200,
+    "ret": -154.5
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 14.97,
+    "steps": 4323600,
+    "ret": -128.1
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 15.06,
+    "steps": 4352400,
+    "ret": -127.7
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 15.17,
+    "steps": 4381200,
+    "ret": -118.6
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 15.28,
+    "steps": 4413600,
+    "ret": -106.8
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 15.38,
+    "steps": 4442400,
+    "ret": -107.0
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 15.48,
+    "steps": 4471200,
+    "ret": -106.2
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 15.59,
+    "steps": 4503600,
+    "ret": -91.0
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 15.69,
+    "steps": 4532400,
+    "ret": -106.6
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 15.79,
+    "steps": 4561200,
+    "ret": -110.9
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 15.9,
+    "steps": 4593600,
+    "ret": -115.1
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 16.0,
+    "steps": 4622400,
+    "ret": -142.3
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 16.1,
+    "steps": 4651200,
+    "ret": -147.0
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 16.22,
+    "steps": 4683600,
+    "ret": -139.7
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 16.31,
+    "steps": 4712400,
+    "ret": -137.3
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 16.42,
+    "steps": 4741200,
+    "ret": -134.9
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 16.53,
+    "steps": 4773600,
+    "ret": -118.6
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 16.63,
+    "steps": 4802400,
+    "ret": -121.6
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 16.73,
+    "steps": 4831200,
+    "ret": -123.7
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 16.84,
+    "steps": 4863600,
+    "ret": -102.3
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 16.94,
+    "steps": 4892400,
+    "ret": -105.8
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 17.04,
+    "steps": 4921200,
+    "ret": -116.8
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 17.15,
+    "steps": 4953600,
+    "ret": -121.0
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 17.25,
+    "steps": 4982400,
+    "ret": -132.1
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 17.35,
+    "steps": 5011200,
+    "ret": -124.7
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 17.46,
+    "steps": 5043600,
+    "ret": -122.2
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 17.57,
+    "steps": 5072400,
+    "ret": -106.3
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 17.66,
+    "steps": 5101200,
+    "ret": -95.6
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 17.78,
+    "steps": 5133600,
+    "ret": -131.4
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 17.88,
+    "steps": 5162400,
+    "ret": -122.3
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 17.98,
+    "steps": 5191200,
+    "ret": -136.4
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 18.09,
+    "steps": 5223600,
+    "ret": -133.6
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 18.19,
+    "steps": 5252400,
+    "ret": -104.8
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 18.29,
+    "steps": 5281200,
+    "ret": -120.9
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 18.4,
+    "steps": 5313600,
+    "ret": -107.4
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 18.5,
+    "steps": 5342400,
+    "ret": -144.2
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 18.6,
+    "steps": 5371200,
+    "ret": -158.8
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 18.71,
+    "steps": 5403600,
+    "ret": -153.2
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 18.81,
+    "steps": 5432400,
+    "ret": -153.1
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 18.91,
+    "steps": 5461200,
+    "ret": -118.2
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 19.03,
+    "steps": 5493600,
+    "ret": -112.0
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 19.13,
+    "steps": 5522400,
+    "ret": -112.5
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 19.23,
+    "steps": 5551200,
+    "ret": -109.4
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 19.34,
+    "steps": 5583600,
+    "ret": -108.6
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 19.44,
+    "steps": 5612400,
+    "ret": -101.8
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 19.54,
+    "steps": 5641200,
+    "ret": -108.3
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 19.65,
+    "steps": 5673600,
+    "ret": -112.4
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 19.75,
+    "steps": 5702400,
+    "ret": -130.5
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 19.85,
+    "steps": 5731200,
+    "ret": -128.7
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 19.96,
+    "steps": 5763600,
+    "ret": -113.7
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 20.06,
+    "steps": 5792400,
+    "ret": -130.4
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 20.16,
+    "steps": 5821200,
+    "ret": -116.3
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 20.27,
+    "steps": 5853600,
+    "ret": -126.9
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 20.37,
+    "steps": 5882400,
+    "ret": -142.6
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 20.47,
+    "steps": 5911200,
+    "ret": -143.9
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 20.58,
+    "steps": 5943600,
+    "ret": -144.2
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 20.68,
+    "steps": 5972400,
+    "ret": -138.2
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 20.78,
+    "steps": 6001200,
+    "ret": -122.4
    },
    {
     "agent": "SAC (20 Hz)",
-    "minutes": 0.31,
+    "minutes": 0.03,
     "steps": 2400,
     "ret": -707.0
    },
    {
     "agent": "SAC (20 Hz)",
-    "minutes": 0.31,
-    "steps": 2400,
-    "ret": -817.3
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 0.35,
+    "minutes": 0.04,
     "steps": 4800,
-    "ret": -873.2
+    "ret": -809.8
    },
    {
     "agent": "SAC (20 Hz)",
-    "minutes": 0.35,
-    "steps": 4800,
-    "ret": -897.3
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 1.33,
+    "minutes": 0.12,
     "steps": 7200,
-    "ret": -923.6
+    "ret": -765.8
    },
    {
     "agent": "SAC (20 Hz)",
-    "minutes": 1.33,
-    "steps": 7200,
-    "ret": -861.2
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 2.24,
+    "minutes": 0.21,
     "steps": 9600,
-    "ret": -813.7
+    "ret": -719.1
    },
    {
     "agent": "SAC (20 Hz)",
-    "minutes": 2.24,
-    "steps": 9600,
-    "ret": -752.9
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 3.24,
-    "steps": 12000,
-    "ret": -684.2
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 3.24,
-    "steps": 12000,
-    "ret": -665.7
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 4.25,
+    "minutes": 0.4,
     "steps": 14400,
-    "ret": -625.5
+    "ret": -692.3
    },
    {
     "agent": "SAC (20 Hz)",
-    "minutes": 4.25,
-    "steps": 14400,
-    "ret": -574.8
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 5.23,
+    "minutes": 0.5,
     "steps": 16800,
-    "ret": -523.4
+    "ret": -570.8
    },
    {
     "agent": "SAC (20 Hz)",
-    "minutes": 5.23,
-    "steps": 16800,
-    "ret": -473.9
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 6.03,
+    "minutes": 0.6,
     "steps": 19200,
-    "ret": -439.6
+    "ret": -496.5
    },
    {
     "agent": "SAC (20 Hz)",
-    "minutes": 6.03,
-    "steps": 19200,
-    "ret": -408.6
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 6.91,
+    "minutes": 0.7,
     "steps": 21600,
-    "ret": -403.3
+    "ret": -431.2
    },
    {
     "agent": "SAC (20 Hz)",
-    "minutes": 6.91,
-    "steps": 21600,
-    "ret": -380.3
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 7.97,
-    "steps": 24000,
-    "ret": -353.1
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 7.97,
-    "steps": 24000,
-    "ret": -332.8
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 8.93,
+    "minutes": 0.9,
     "steps": 26400,
-    "ret": -316.4
+    "ret": -354.5
    },
    {
     "agent": "SAC (20 Hz)",
-    "minutes": 8.93,
-    "steps": 26400,
-    "ret": -308.7
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 10.05,
+    "minutes": 1.0,
     "steps": 28800,
-    "ret": -304.1
+    "ret": -319.7
    },
    {
     "agent": "SAC (20 Hz)",
-    "minutes": 10.05,
-    "steps": 28800,
-    "ret": -291.0
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 11.1,
+    "minutes": 1.1,
     "steps": 31200,
-    "ret": -290.4
+    "ret": -291.2
    },
    {
     "agent": "SAC (20 Hz)",
-    "minutes": 11.1,
-    "steps": 31200,
-    "ret": -280.1
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 12.29,
+    "minutes": 1.2,
     "steps": 33600,
-    "ret": -281.0
+    "ret": -283.2
    },
    {
     "agent": "SAC (20 Hz)",
-    "minutes": 12.29,
-    "steps": 33600,
-    "ret": -266.8
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 13.47,
-    "steps": 36000,
-    "ret": -271.8
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 13.47,
-    "steps": 36000,
-    "ret": -266.8
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 14.53,
+    "minutes": 1.41,
     "steps": 38400,
-    "ret": -258.7
+    "ret": -266.9
    },
    {
     "agent": "SAC (20 Hz)",
-    "minutes": 14.53,
-    "steps": 38400,
-    "ret": -251.0
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 15.86,
+    "minutes": 1.5,
     "steps": 40800,
-    "ret": -254.0
+    "ret": -257.5
    },
    {
     "agent": "SAC (20 Hz)",
-    "minutes": 15.86,
-    "steps": 40800,
-    "ret": -253.5
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 17.05,
+    "minutes": 1.6,
     "steps": 43200,
-    "ret": -263.6
+    "ret": -247.7
    },
    {
     "agent": "SAC (20 Hz)",
-    "minutes": 17.05,
-    "steps": 43200,
-    "ret": -255.1
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 18.06,
+    "minutes": 1.7,
     "steps": 45600,
-    "ret": -248.0
+    "ret": -233.2
    },
    {
     "agent": "SAC (20 Hz)",
-    "minutes": 18.06,
-    "steps": 45600,
-    "ret": -253.0
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 19.08,
-    "steps": 48000,
-    "ret": -246.7
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 19.08,
-    "steps": 48000,
-    "ret": -240.8
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 20.01,
+    "minutes": 1.9,
     "steps": 50400,
-    "ret": -238.5
+    "ret": -239.9
    },
    {
     "agent": "SAC (20 Hz)",
-    "minutes": 20.01,
-    "steps": 50400,
-    "ret": -234.2
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 21.0,
+    "minutes": 1.99,
     "steps": 52800,
-    "ret": -246.7
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 21.0,
-    "steps": 52800,
-    "ret": -240.7
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 21.88,
-    "steps": 55200,
-    "ret": -240.1
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 21.88,
-    "steps": 55200,
-    "ret": -238.6
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 22.9,
-    "steps": 57600,
-    "ret": -242.4
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 22.9,
-    "steps": 57600,
-    "ret": -241.7
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 23.86,
-    "steps": 60000,
-    "ret": -248.2
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 23.86,
-    "steps": 60000,
-    "ret": -253.4
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 24.76,
-    "steps": 62400,
-    "ret": -255.0
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 24.76,
-    "steps": 62400,
-    "ret": -237.3
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 25.68,
-    "steps": 64800,
-    "ret": -221.2
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 25.68,
-    "steps": 64800,
-    "ret": -223.3
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 26.59,
-    "steps": 67200,
-    "ret": -222.2
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 26.59,
-    "steps": 67200,
-    "ret": -229.4
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 27.5,
-    "steps": 69600,
     "ret": -229.7
    },
    {
     "agent": "SAC (20 Hz)",
-    "minutes": 27.5,
+    "minutes": 2.09,
+    "steps": 55200,
+    "ret": -235.0
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 2.19,
+    "steps": 57600,
+    "ret": -246.1
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 2.39,
+    "steps": 62400,
+    "ret": -252.6
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 2.49,
+    "steps": 64800,
+    "ret": -259.7
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 2.58,
+    "steps": 67200,
+    "ret": -250.1
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 2.68,
     "steps": 69600,
-    "ret": -238.3
+    "ret": -235.2
    },
    {
     "agent": "SAC (20 Hz)",
-    "minutes": 28.39,
-    "steps": 72000,
-    "ret": -231.5
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 28.39,
-    "steps": 72000,
-    "ret": -229.5
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 29.3,
+    "minutes": 2.87,
     "steps": 74400,
-    "ret": -221.6
+    "ret": -219.5
    },
    {
     "agent": "SAC (20 Hz)",
-    "minutes": 29.3,
-    "steps": 74400,
-    "ret": -214.1
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 30.27,
+    "minutes": 2.97,
     "steps": 76800,
-    "ret": -211.8
+    "ret": -219.9
    },
    {
     "agent": "SAC (20 Hz)",
-    "minutes": 30.27,
-    "steps": 76800,
-    "ret": -213.8
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 31.23,
+    "minutes": 3.06,
     "steps": 79200,
-    "ret": -221.5
+    "ret": -228.1
    },
    {
     "agent": "SAC (20 Hz)",
-    "minutes": 31.23,
-    "steps": 79200,
-    "ret": -223.5
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 32.21,
+    "minutes": 3.16,
     "steps": 81600,
-    "ret": -229.1
+    "ret": -224.4
    },
    {
     "agent": "SAC (20 Hz)",
-    "minutes": 32.21,
-    "steps": 81600,
-    "ret": -220.5
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 33.16,
-    "steps": 84000,
-    "ret": -216.2
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 33.16,
-    "steps": 84000,
-    "ret": -206.9
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 34.19,
+    "minutes": 3.35,
     "steps": 86400,
-    "ret": -205.7
+    "ret": -223.7
    },
    {
     "agent": "SAC (20 Hz)",
-    "minutes": 34.19,
-    "steps": 86400,
-    "ret": -214.7
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 35.1,
+    "minutes": 3.45,
     "steps": 88800,
-    "ret": -217.6
+    "ret": -215.4
    },
    {
     "agent": "SAC (20 Hz)",
-    "minutes": 35.1,
-    "steps": 88800,
-    "ret": -215.6
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 35.96,
+    "minutes": 3.55,
     "steps": 91200,
-    "ret": -211.3
+    "ret": -201.7
    },
    {
     "agent": "SAC (20 Hz)",
-    "minutes": 35.96,
-    "steps": 91200,
-    "ret": -209.2
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 36.79,
+    "minutes": 3.65,
     "steps": 93600,
-    "ret": -204.3
+    "ret": -200.9
    },
    {
     "agent": "SAC (20 Hz)",
-    "minutes": 36.79,
-    "steps": 93600,
-    "ret": -205.8
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 37.65,
-    "steps": 96000,
-    "ret": -201.4
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 37.65,
-    "steps": 96000,
-    "ret": -201.0
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 38.5,
+    "minutes": 3.85,
     "steps": 98400,
-    "ret": -205.6
+    "ret": -213.7
    },
    {
     "agent": "SAC (20 Hz)",
-    "minutes": 38.5,
-    "steps": 98400,
-    "ret": -208.2
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 39.28,
+    "minutes": 3.94,
     "steps": 100800,
-    "ret": -217.0
+    "ret": -214.3
    },
    {
     "agent": "SAC (20 Hz)",
-    "minutes": 39.28,
-    "steps": 100800,
-    "ret": -225.9
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 40.1,
+    "minutes": 4.04,
     "steps": 103200,
-    "ret": -218.2
+    "ret": -222.7
    },
    {
     "agent": "SAC (20 Hz)",
-    "minutes": 40.1,
-    "steps": 103200,
-    "ret": -219.2
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 40.94,
+    "minutes": 4.13,
     "steps": 105600,
-    "ret": -222.6
+    "ret": -222.7
    },
    {
     "agent": "SAC (20 Hz)",
-    "minutes": 40.94,
-    "steps": 105600,
-    "ret": -228.8
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 41.87,
-    "steps": 108000,
-    "ret": -225.1
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 41.87,
-    "steps": 108000,
-    "ret": -221.1
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 42.76,
+    "minutes": 4.33,
     "steps": 110400,
-    "ret": -220.2
+    "ret": -211.9
    },
    {
     "agent": "SAC (20 Hz)",
-    "minutes": 42.76,
-    "steps": 110400,
-    "ret": -223.0
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 43.64,
+    "minutes": 4.43,
     "steps": 112800,
-    "ret": -218.1
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 43.64,
-    "steps": 112800,
-    "ret": -221.6
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 44.5,
-    "steps": 115200,
-    "ret": -220.3
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 44.5,
-    "steps": 115200,
-    "ret": -209.4
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 45.27,
-    "steps": 117600,
-    "ret": -207.7
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 45.27,
-    "steps": 117600,
     "ret": -212.3
    },
    {
     "agent": "SAC (20 Hz)",
-    "minutes": 45.87,
-    "steps": 120000,
-    "ret": -205.4
+    "minutes": 4.53,
+    "steps": 115200,
+    "ret": -205.6
    },
    {
     "agent": "SAC (20 Hz)",
-    "minutes": 45.87,
-    "steps": 120000,
-    "ret": -212.6
+    "minutes": 4.63,
+    "steps": 117600,
+    "ret": -201.4
    },
    {
     "agent": "SAC (20 Hz)",
-    "minutes": 46.32,
+    "minutes": 4.83,
     "steps": 122400,
-    "ret": -206.9
+    "ret": -194.2
    },
    {
     "agent": "SAC (20 Hz)",
-    "minutes": 46.32,
-    "steps": 122400,
-    "ret": -208.0
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 46.73,
+    "minutes": 4.93,
     "steps": 124800,
-    "ret": -202.4
+    "ret": -187.9
    },
    {
     "agent": "SAC (20 Hz)",
-    "minutes": 46.73,
-    "steps": 124800,
-    "ret": -195.8
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 47.18,
+    "minutes": 5.03,
     "steps": 127200,
-    "ret": -190.2
+    "ret": -184.9
    },
    {
     "agent": "SAC (20 Hz)",
-    "minutes": 47.18,
-    "steps": 127200,
-    "ret": -196.1
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 47.63,
+    "minutes": 5.13,
     "steps": 129600,
-    "ret": -203.4
+    "ret": -194.4
    },
    {
     "agent": "SAC (20 Hz)",
-    "minutes": 47.63,
-    "steps": 129600,
-    "ret": -206.0
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 48.05,
-    "steps": 132000,
-    "ret": -206.3
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 48.05,
-    "steps": 132000,
-    "ret": -205.1
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 48.51,
+    "minutes": 5.33,
     "steps": 134400,
-    "ret": -204.1
+    "ret": -192.7
    },
    {
     "agent": "SAC (20 Hz)",
-    "minutes": 48.51,
-    "steps": 134400,
-    "ret": -198.6
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 48.97,
+    "minutes": 5.43,
     "steps": 136800,
-    "ret": -201.2
+    "ret": -192.4
    },
    {
     "agent": "SAC (20 Hz)",
-    "minutes": 48.97,
-    "steps": 136800,
-    "ret": -197.6
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 49.43,
+    "minutes": 5.53,
     "steps": 139200,
-    "ret": -193.2
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 49.43,
-    "steps": 139200,
-    "ret": -200.7
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 49.89,
-    "steps": 141600,
-    "ret": -200.0
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 49.89,
-    "steps": 141600,
-    "ret": -193.7
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 50.36,
-    "steps": 144000,
-    "ret": -189.8
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 50.36,
-    "steps": 144000,
-    "ret": -188.3
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 50.8,
-    "steps": 146400,
-    "ret": -192.5
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 50.8,
-    "steps": 146400,
     "ret": -193.9
    },
    {
     "agent": "SAC (20 Hz)",
-    "minutes": 51.25,
+    "minutes": 5.63,
+    "steps": 141600,
+    "ret": -189.9
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 5.83,
+    "steps": 146400,
+    "ret": -194.4
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 5.93,
     "steps": 148800,
-    "ret": -196.7
+    "ret": -198.2
    },
    {
     "agent": "SAC (20 Hz)",
-    "minutes": 51.25,
-    "steps": 148800,
-    "ret": -200.5
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 51.7,
+    "minutes": 6.03,
     "steps": 151200,
-    "ret": -194.8
+    "ret": -197.4
    },
    {
     "agent": "SAC (20 Hz)",
-    "minutes": 51.7,
-    "steps": 151200,
-    "ret": -195.9
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 52.1,
+    "minutes": 6.13,
     "steps": 153600,
-    "ret": -192.3
+    "ret": -189.4
    },
    {
     "agent": "SAC (20 Hz)",
-    "minutes": 52.1,
-    "steps": 153600,
-    "ret": -191.0
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 52.53,
-    "steps": 156000,
-    "ret": -177.6
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 52.53,
-    "steps": 156000,
-    "ret": -184.0
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 52.94,
+    "minutes": 6.33,
     "steps": 158400,
-    "ret": -187.4
+    "ret": -188.6
    },
    {
     "agent": "SAC (20 Hz)",
-    "minutes": 52.94,
-    "steps": 158400,
-    "ret": -201.3
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 53.38,
+    "minutes": 6.43,
     "steps": 160800,
-    "ret": -198.7
+    "ret": -191.5
    },
    {
     "agent": "SAC (20 Hz)",
-    "minutes": 53.38,
-    "steps": 160800,
-    "ret": -198.8
-   },
-   {
-    "agent": "SAC (20 Hz)",
-    "minutes": 53.79,
+    "minutes": 6.53,
     "steps": 163200,
+    "ret": -195.2
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 6.63,
+    "steps": 165600,
+    "ret": -205.2
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 6.82,
+    "steps": 170400,
+    "ret": -202.5
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 6.92,
+    "steps": 172800,
+    "ret": -202.1
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 7.01,
+    "steps": 175200,
+    "ret": -192.5
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 7.11,
+    "steps": 177600,
+    "ret": -190.1
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 7.29,
+    "steps": 182400,
     "ret": -197.1
    },
    {
     "agent": "SAC (20 Hz)",
-    "minutes": 53.79,
-    "steps": 163200,
-    "ret": -198.4
+    "minutes": 7.39,
+    "steps": 184800,
+    "ret": -200.1
    },
    {
     "agent": "SAC (20 Hz)",
-    "minutes": 54.22,
-    "steps": 165600,
-    "ret": -192.1
+    "minutes": 7.48,
+    "steps": 187200,
+    "ret": -196.8
    },
    {
     "agent": "SAC (20 Hz)",
-    "minutes": 54.22,
-    "steps": 165600,
-    "ret": -189.6
+    "minutes": 7.57,
+    "steps": 189600,
+    "ret": -188.3
    },
    {
     "agent": "SAC (20 Hz)",
-    "minutes": 54.64,
-    "steps": 168000,
-    "ret": -186.4
+    "minutes": 7.77,
+    "steps": 194400,
+    "ret": -184.2
    },
    {
     "agent": "SAC (20 Hz)",
-    "minutes": 54.64,
-    "steps": 168000,
-    "ret": -191.1
+    "minutes": 7.86,
+    "steps": 196800,
+    "ret": -173.3
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 7.96,
+    "steps": 199200,
+    "ret": -167.1
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 8.06,
+    "steps": 201600,
+    "ret": -171.7
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 8.25,
+    "steps": 206400,
+    "ret": -162.9
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 8.35,
+    "steps": 208800,
+    "ret": -155.0
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 8.44,
+    "steps": 211200,
+    "ret": -160.2
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 8.54,
+    "steps": 213600,
+    "ret": -159.7
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 8.74,
+    "steps": 218400,
+    "ret": -166.7
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 8.84,
+    "steps": 220800,
+    "ret": -170.9
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 8.94,
+    "steps": 223200,
+    "ret": -184.2
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 9.03,
+    "steps": 225600,
+    "ret": -176.9
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 9.24,
+    "steps": 230400,
+    "ret": -164.3
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 9.33,
+    "steps": 232800,
+    "ret": -175.9
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 9.44,
+    "steps": 235200,
+    "ret": -164.6
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 9.54,
+    "steps": 237600,
+    "ret": -164.3
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 9.74,
+    "steps": 242400,
+    "ret": -170.5
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 9.83,
+    "steps": 244800,
+    "ret": -166.3
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 9.92,
+    "steps": 247200,
+    "ret": -177.4
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 10.02,
+    "steps": 249600,
+    "ret": -178.1
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 10.22,
+    "steps": 254400,
+    "ret": -188.8
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 10.32,
+    "steps": 256800,
+    "ret": -187.2
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 10.43,
+    "steps": 259200,
+    "ret": -179.6
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 10.52,
+    "steps": 261600,
+    "ret": -173.8
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 10.71,
+    "steps": 266400,
+    "ret": -169.4
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 10.81,
+    "steps": 268800,
+    "ret": -159.9
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 10.91,
+    "steps": 271200,
+    "ret": -158.1
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 11.01,
+    "steps": 273600,
+    "ret": -163.3
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 11.22,
+    "steps": 278400,
+    "ret": -155.8
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 11.31,
+    "steps": 280800,
+    "ret": -154.8
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 11.41,
+    "steps": 283200,
+    "ret": -149.1
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 11.51,
+    "steps": 285600,
+    "ret": -149.7
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 11.71,
+    "steps": 290400,
+    "ret": -144.4
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 11.81,
+    "steps": 292800,
+    "ret": -140.8
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 11.9,
+    "steps": 295200,
+    "ret": -155.0
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 12.0,
+    "steps": 297600,
+    "ret": -149.7
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 12.2,
+    "steps": 302400,
+    "ret": -160.3
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 12.29,
+    "steps": 304800,
+    "ret": -175.5
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 12.39,
+    "steps": 307200,
+    "ret": -165.2
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 12.5,
+    "steps": 309600,
+    "ret": -168.4
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 12.69,
+    "steps": 314400,
+    "ret": -157.2
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 12.79,
+    "steps": 316800,
+    "ret": -149.4
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 12.89,
+    "steps": 319200,
+    "ret": -157.8
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 12.99,
+    "steps": 321600,
+    "ret": -157.2
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 13.18,
+    "steps": 326400,
+    "ret": -160.0
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 13.28,
+    "steps": 328800,
+    "ret": -154.3
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 13.38,
+    "steps": 331200,
+    "ret": -141.8
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 13.48,
+    "steps": 333600,
+    "ret": -142.7
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 13.67,
+    "steps": 338400,
+    "ret": -148.1
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 13.77,
+    "steps": 340800,
+    "ret": -151.4
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 13.87,
+    "steps": 343200,
+    "ret": -161.5
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 13.96,
+    "steps": 345600,
+    "ret": -163.2
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 14.16,
+    "steps": 350400,
+    "ret": -152.8
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 14.26,
+    "steps": 352800,
+    "ret": -159.8
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 14.35,
+    "steps": 355200,
+    "ret": -165.1
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 14.45,
+    "steps": 357600,
+    "ret": -167.3
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 14.66,
+    "steps": 362400,
+    "ret": -166.5
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 14.76,
+    "steps": 364800,
+    "ret": -171.8
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 14.86,
+    "steps": 367200,
+    "ret": -155.2
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 14.95,
+    "steps": 369600,
+    "ret": -161.8
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 15.15,
+    "steps": 374400,
+    "ret": -175.9
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 15.25,
+    "steps": 376800,
+    "ret": -163.9
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 15.35,
+    "steps": 379200,
+    "ret": -177.4
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 15.46,
+    "steps": 381600,
+    "ret": -158.0
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 15.64,
+    "steps": 386400,
+    "ret": -139.7
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 15.74,
+    "steps": 388800,
+    "ret": -129.6
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 15.84,
+    "steps": 391200,
+    "ret": -123.6
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 15.93,
+    "steps": 393600,
+    "ret": -133.5
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 16.13,
+    "steps": 398400,
+    "ret": -143.2
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 16.23,
+    "steps": 400800,
+    "ret": -155.8
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 16.32,
+    "steps": 403200,
+    "ret": -146.5
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 16.42,
+    "steps": 405600,
+    "ret": -147.6
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 16.62,
+    "steps": 410400,
+    "ret": -135.6
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 16.72,
+    "steps": 412800,
+    "ret": -127.5
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 16.82,
+    "steps": 415200,
+    "ret": -126.4
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 16.91,
+    "steps": 417600,
+    "ret": -114.3
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 17.1,
+    "steps": 422400,
+    "ret": -118.5
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 17.2,
+    "steps": 424800,
+    "ret": -117.5
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 17.29,
+    "steps": 427200,
+    "ret": -120.4
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 17.39,
+    "steps": 429600,
+    "ret": -122.5
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 17.59,
+    "steps": 434400,
+    "ret": -121.7
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 17.69,
+    "steps": 436800,
+    "ret": -123.1
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 17.79,
+    "steps": 439200,
+    "ret": -126.1
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 17.89,
+    "steps": 441600,
+    "ret": -133.0
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 18.09,
+    "steps": 446400,
+    "ret": -140.9
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 18.19,
+    "steps": 448800,
+    "ret": -135.2
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 18.29,
+    "steps": 451200,
+    "ret": -126.7
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 18.38,
+    "steps": 453600,
+    "ret": -125.9
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 18.58,
+    "steps": 458400,
+    "ret": -116.2
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 18.68,
+    "steps": 460800,
+    "ret": -122.5
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 18.78,
+    "steps": 463200,
+    "ret": -122.3
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 18.87,
+    "steps": 465600,
+    "ret": -112.6
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 19.07,
+    "steps": 470400,
+    "ret": -115.4
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 19.17,
+    "steps": 472800,
+    "ret": -112.8
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 19.27,
+    "steps": 475200,
+    "ret": -119.8
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 19.37,
+    "steps": 477600,
+    "ret": -118.9
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 19.57,
+    "steps": 482400,
+    "ret": -119.1
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 19.67,
+    "steps": 484800,
+    "ret": -126.4
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 19.77,
+    "steps": 487200,
+    "ret": -133.4
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 19.87,
+    "steps": 489600,
+    "ret": -141.9
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 20.06,
+    "steps": 494400,
+    "ret": -148.2
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 20.16,
+    "steps": 496800,
+    "ret": -142.5
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 20.26,
+    "steps": 499200,
+    "ret": -131.6
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 20.37,
+    "steps": 501600,
+    "ret": -127.3
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 20.56,
+    "steps": 506400,
+    "ret": -121.4
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 20.66,
+    "steps": 508800,
+    "ret": -112.3
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 20.76,
+    "steps": 511200,
+    "ret": -120.0
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 20.84,
+    "steps": 513600,
+    "ret": -116.4
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 21.0,
+    "steps": 518400,
+    "ret": -109.8
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 21.08,
+    "steps": 520800,
+    "ret": -119.3
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 21.15,
+    "steps": 523200,
+    "ret": -103.2
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 21.22,
+    "steps": 525600,
+    "ret": -113.9
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 21.37,
+    "steps": 530400,
+    "ret": -115.4
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 21.44,
+    "steps": 532800,
+    "ret": -110.2
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 21.52,
+    "steps": 535200,
+    "ret": -118.1
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 21.6,
+    "steps": 537600,
+    "ret": -120.3
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 21.75,
+    "steps": 542400,
+    "ret": -120.1
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 21.83,
+    "steps": 544800,
+    "ret": -126.5
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 21.91,
+    "steps": 547200,
+    "ret": -126.1
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 21.99,
+    "steps": 549600,
+    "ret": -121.8
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 22.14,
+    "steps": 554400,
+    "ret": -122.3
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 22.23,
+    "steps": 556800,
+    "ret": -121.4
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 22.3,
+    "steps": 559200,
+    "ret": -113.7
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 22.38,
+    "steps": 561600,
+    "ret": -105.3
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 22.52,
+    "steps": 566400,
+    "ret": -111.0
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 22.6,
+    "steps": 568800,
+    "ret": -107.0
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 22.67,
+    "steps": 571200,
+    "ret": -115.5
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 22.74,
+    "steps": 573600,
+    "ret": -124.0
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 22.89,
+    "steps": 578400,
+    "ret": -121.6
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 22.96,
+    "steps": 580800,
+    "ret": -123.2
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 23.03,
+    "steps": 583200,
+    "ret": -132.9
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 23.11,
+    "steps": 585600,
+    "ret": -138.7
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 23.25,
+    "steps": 590400,
+    "ret": -137.9
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 23.32,
+    "steps": 592800,
+    "ret": -140.1
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 23.4,
+    "steps": 595200,
+    "ret": -124.7
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 23.47,
+    "steps": 597600,
+    "ret": -117.9
    }
   ]
  },
@@ -2451,8 +2787,8 @@ Mean over the same 20 held-out episodes as before (seeds 1000–1019). Settling:
 ```
 <!-- END generated: curves20 -->
 
-1. **PPO at 20 Hz is about as good as PPO at 10 Hz without preview** on pressure (1.04 % against 1.21 %), worse on mixture ratio (0.82 % against 0.37 %), and nowhere near the preview agents. Twice the control rate does not buy what anticipation buys. It does cost training: in its 55 minutes PPO at 20 Hz saw 2.7 M steps, 37 h of engine time, while the 10 Hz PPO saw 3 M steps, 83 h, in 17–27 min on an idle CPU.
-2. **SAC at 20 Hz is not a fair SAC result.** It shared the CPU with other jobs and reached 170 k steps, about a third of the 10 Hz run, and its learning curve is still rising. Its valve travel, 66 per episode against PPO's 3.7, shows a policy that has not learned to sit still. It needs a longer budget, or a faster simulator; the challenge's runs at real time make the same point ([§5.4](05-limitations.md#54-data-minutes-of-reality-days-of-simulation)).
+1. **PPO at 20 Hz is about as good as PPO at 10 Hz without preview** on pressure (1.15 % against 1.21 %), worse on mixture ratio (1.01 % against 0.37 %), and nowhere near the preview agents. Twice the control rate does not buy what anticipation buys. Nor did more training: its 6 M steps are 83 h of engine time, the same as the 10 Hz PPO's 3 M, and an earlier run stopped at 2.7 M steps ([commit 43856e2](https://github.com/leandergrech/rl-rocket-engine-control/commit/43856e2)) scored 1.04 / 0.82 %. That gap is about the spread between two seeds ([below](#a-second-seed)).
+2. **SAC at 20 Hz is the best 20 Hz controller once it gets its full budget:** 0.97 % on pressure and 0.38 % on mixture ratio, close to the 10 Hz SAC without preview (0.79 / 0.31 %). Its 600 k steps, 8.3 h of engine time, took 24 min on the rented desktop CPU. On the laptop, sharing the CPU with other jobs, the same 55-minute cap had bought only 170 k steps, and that policy chattered (valve travel 66 per episode). The trained one moves its valves about twice as much as PPO (6.3 against 3.2). Compute, not the algorithm, was the bottleneck; the challenge's simulator, which runs at real time, will make that plainer ([§5.4](05-limitations.md#54-data-minutes-of-reality-days-of-simulation)).
 3. **Both PIs violate constraints that no learned controller touches**: 1.4–1.9 s per 30 s episode over a limit, mostly the cooling-channel pressure at low set points and mixture-ratio overshoot.
 
 ## The seven test cases {#test-cases}
@@ -2465,8 +2801,8 @@ The challenge's seven test cases ([§1.3](01-problem.md#13-the-seven-test-cases-
 | Open-loop feedforward | 4.71 / 4.49 · 3.6 s | 5.22 / 4.61 · 2.4 s | 5.45 / 5.74 · 7.6 s | 5.58 / 6.47 · 6.5 s | 6.84 / 5.42 · 9.6 s | 9.31 / 12.85 · 25.2 s | 5.11 / 18.35 · 14.8 s |
 | Decoupled PI, tuned | 2.79 / 2.83 · 2.0 s | 2.41 / 1.98 · 0.6 s | 3.31 / 3.42 · 2.0 s | 3.39 / 3.44 · 2.2 s | 3.78 / 2.64 · 4.4 s | 3.62 / 4.09 · 3.7 s | 7.40 / 12.58 · 11.9 s |
 | Decoupled PI, bandwidth design | 2.28 / 3.25 · 2.0 s | 1.83 / 2.71 · 0.5 s | 2.66 / 3.77 · 2.4 s | 2.69 / 3.96 · 3.4 s | **2.78 / 3.65 · 4.0 s** | **2.53 / 3.63 · 2.9 s** | 5.85 / 12.76 · 12.0 s |
-| PPO (20 Hz) | 1.27 / 0.87 | 0.64 / 0.61 | 2.03 / 1.13 | 3.43 / 7.24 | 3.58 / 5.35 · 1.7 s | 3.08 / 5.22 · 2.0 s | 3.51 / 13.10 · 12.3 s |
-| SAC (20 Hz) | 1.58 / 1.36 | 0.98 / 1.08 | 2.20 / 1.72 | 3.63 / 6.56 · 0.1 s | 3.82 / 4.87 · 1.1 s | 3.07 / 4.81 · 1.9 s | 3.16 / 15.74 · 12.5 s |
+| PPO (20 Hz) | 1.35 / 1.12 | 0.68 / 0.49 | 2.03 / 1.42 | 3.24 / 7.48 | 3.71 / 5.38 · 1.6 s | 3.62 / 5.39 · 2.0 s | 2.95 / 14.05 · 12.4 s |
+| SAC (20 Hz) | 1.44 / 0.43 | 0.71 / 0.28 | 2.97 / 1.33 | 4.46 / 6.60 | 4.46 / 4.93 · 2.2 s | 3.46 / 3.50 · 2.5 s | 3.46 / 12.34 · 12.2 s |
 | PPO, preview (10 Hz) | **0.63 / 0.36** | 0.29 / 0.28 | 1.86 / 0.57 | 3.13 / 6.74 | 3.56 / 5.10 · 2.0 s | 3.76 / 3.68 · 2.8 s | **2.75 / 14.07 · 12.8 s** |
 | PPO, no preview (10 Hz) | 1.43 / 0.37 | 0.78 / 0.27 | 2.03 / 0.57 | **2.64 / 5.52** | 2.99 / 4.05 | 3.76 / 4.01 · 2.2 s | 3.42 / 13.43 · 12.2 s |
 | SAC, preview (10 Hz) | 0.68 / 0.34 | **0.25 / 0.17** | **1.81 / 0.55** | 3.40 / 6.79 | 3.58 / 5.00 · 2.2 s | 3.55 / 4.13 · 2.9 s | 3.01 / 13.88 · 12.7 s |
@@ -2636,100 +2972,100 @@ One episode per cell, sensor noise on (seed 0): mean chamber-pressure / mixture-
    {
     "controller": "PPO (20 Hz)",
     "case": "1. Nominal, known reference",
-    "mape_p": 1.27,
-    "mape_rof": 0.87,
+    "mape_p": 1.35,
+    "mape_rof": 1.12,
     "over_s": 0.0
    },
    {
     "controller": "PPO (20 Hz)",
     "case": "2. Nominal, unknown reference",
-    "mape_p": 0.64,
-    "mape_rof": 0.61,
+    "mape_p": 0.68,
+    "mape_rof": 0.49,
     "over_s": 0.0
    },
    {
     "controller": "PPO (20 Hz)",
     "case": "3. Engine varies, distribution known",
     "mape_p": 2.03,
-    "mape_rof": 1.13,
+    "mape_rof": 1.42,
     "over_s": 0.0
    },
    {
     "controller": "PPO (20 Hz)",
     "case": "4. Engine changed, nothing known",
-    "mape_p": 3.43,
-    "mape_rof": 7.24,
+    "mape_p": 3.24,
+    "mape_rof": 7.48,
     "over_s": 0.0
    },
    {
     "controller": "PPO (20 Hz)",
     "case": "5. Slow drift (ageing)",
-    "mape_p": 3.58,
-    "mape_rof": 5.35,
-    "over_s": 1.65
+    "mape_p": 3.71,
+    "mape_rof": 5.38,
+    "over_s": 1.55
    },
    {
     "controller": "PPO (20 Hz)",
     "case": "6. Fault, with a detection signal",
-    "mape_p": 3.08,
-    "mape_rof": 5.22,
+    "mape_p": 3.62,
+    "mape_rof": 5.39,
     "over_s": 1.95
    },
    {
     "controller": "PPO (20 Hz)",
     "case": "7. Fault, no detection signal",
-    "mape_p": 3.51,
-    "mape_rof": 13.1,
-    "over_s": 12.3
+    "mape_p": 2.95,
+    "mape_rof": 14.05,
+    "over_s": 12.35
    },
    {
     "controller": "SAC (20 Hz)",
     "case": "1. Nominal, known reference",
-    "mape_p": 1.58,
-    "mape_rof": 1.36,
+    "mape_p": 1.44,
+    "mape_rof": 0.43,
     "over_s": 0.0
    },
    {
     "controller": "SAC (20 Hz)",
     "case": "2. Nominal, unknown reference",
-    "mape_p": 0.98,
-    "mape_rof": 1.08,
+    "mape_p": 0.71,
+    "mape_rof": 0.28,
     "over_s": 0.0
    },
    {
     "controller": "SAC (20 Hz)",
     "case": "3. Engine varies, distribution known",
-    "mape_p": 2.2,
-    "mape_rof": 1.72,
+    "mape_p": 2.97,
+    "mape_rof": 1.33,
     "over_s": 0.0
    },
    {
     "controller": "SAC (20 Hz)",
     "case": "4. Engine changed, nothing known",
-    "mape_p": 3.63,
-    "mape_rof": 6.56,
-    "over_s": 0.1
+    "mape_p": 4.46,
+    "mape_rof": 6.6,
+    "over_s": 0.0
    },
    {
     "controller": "SAC (20 Hz)",
     "case": "5. Slow drift (ageing)",
-    "mape_p": 3.82,
-    "mape_rof": 4.87,
-    "over_s": 1.1
+    "mape_p": 4.46,
+    "mape_rof": 4.93,
+    "over_s": 2.25
    },
    {
     "controller": "SAC (20 Hz)",
     "case": "6. Fault, with a detection signal",
-    "mape_p": 3.07,
-    "mape_rof": 4.81,
-    "over_s": 1.85
+    "mape_p": 3.46,
+    "mape_rof": 3.5,
+    "over_s": 2.5
    },
    {
     "controller": "SAC (20 Hz)",
     "case": "7. Fault, no detection signal",
-    "mape_p": 3.16,
-    "mape_rof": 15.74,
-    "over_s": 12.45
+    "mape_p": 3.46,
+    "mape_rof": 12.34,
+    "over_s": 12.15
    },
    {
     "controller": "PPO, preview (10 Hz)",
@@ -3022,10 +3358,10 @@ One episode per cell, sensor noise on (seed 0): mean chamber-pressure / mixture-
 
 What the matrix says:
 
-- **Nominal tracking (1–2) is the networks' game.** PPO at 20 Hz tracks pressure to 0.6–1.3 % and mixture ratio to under 0.9 %, against 1.8–2.8 % and 2–3.3 % for the PIs. With preview, the 10 Hz agents halve that again.
-- **Model error (3–4) splits pressure from mixture ratio.** On a randomised engine (3) the networks still lead. On the changed engine (4) their mixture ratio sits 5.5–7.2 % off, the steady offset of a controller without integral action, while the PIs stay at 3.4–4.0 %.
-- **Drift and the bearing fault (5–6) favour the bandwidth-designed PI** on pressure (2.5–2.8 %), and its mixture-ratio error stays under 3.7 %. The networks keep pressure within 3–3.8 % but lose the mixture ratio to 3.7–5.4 %, and spend up to 2.9 s over a limit.
-- **A stuck TOV (7) breaks everyone's mixture ratio** (12–16 %): with TOV frozen, TFV alone cannot hold two outputs. The networks keep pressure at 2.8–3.9 %, by trading away the mixture ratio. The PIs, whose mixture-ratio loop keeps pushing a valve that does not move, lose both (5.9–7.4 % on pressure). This is why the challenge pairs a fault with a detection signal (6) against one without (7). A controller told that TOV is stuck could give up the mixture ratio on purpose; none of these is told, and none could use the signal yet.
+- **Nominal tracking (1–2) is the networks' game.** The 20 Hz networks track pressure to 0.7–1.4 % and mixture ratio to under 1.2 %, against 1.8–2.8 % and 2–3.3 % for the PIs. With preview, the 10 Hz agents halve that again.
+- **Model error (3–4) splits pressure from mixture ratio.** On a randomised engine (3) the networks still lead on mixture ratio, but on pressure SAC at 20 Hz falls behind the bandwidth-designed PI (2.97 % against 2.66 %). On the changed engine (4) their mixture ratio sits 5.5–7.5 % off, the steady offset of a controller without integral action, while the PIs stay at 3.4–4.0 %.
+- **Drift and the bearing fault (5–6) favour the bandwidth-designed PI** on pressure (2.5–2.8 %), and its mixture-ratio error stays under 3.7 %. The networks keep pressure within 3–4.5 % but lose the mixture ratio to 3.5–5.4 %, and spend up to 2.9 s over a limit.
+- **A stuck TOV (7) breaks everyone's mixture ratio** (12–14 %): with TOV frozen, TFV alone cannot hold two outputs. The networks keep pressure at 2.8–3.9 %, by trading away the mixture ratio. The PIs, whose mixture-ratio loop keeps pushing a valve that does not move, lose both (5.9–7.4 % on pressure). This is why the challenge pairs a fault with a detection signal (6) against one without (7). A controller told that TOV is stuck could give up the mixture ratio on purpose; none of these is told, and none could use the signal yet.
 
 ## The PI's bandwidth {#pi-bandwidth}
 
