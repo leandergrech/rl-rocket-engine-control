@@ -59,4 +59,4 @@ Why would a valve model error destabilise a controller that worked in simulation
 
     1. A valve has 50 ms dead time and the controller runs at 10 Hz. When does the controller first see the effect of its command? *Not before the next sample, and only partly: the valve starts moving after 50 ms and the sensors add their own delay ([Sensors, delays and noise](6-sensors.md)).*
     2. Why does the same TFV opening pass more methane when the methane is colder? *Choked mass flow scales with $p_0/\sqrt{T_0}$.*
-    3. What do you randomise first when training for hardware? *Valve dead time, speed and flow coefficient, as DLR did after the first failed test.*
+    3. What do you randomise first when training for hardware? *Valve dead time, speed and flow coefficient, as DLR did after the first, unstable test.*
