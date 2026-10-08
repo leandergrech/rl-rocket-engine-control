@@ -230,14 +230,6 @@ The left navigation tells one story, in this order. Each page's previous and nex
 
 <div class="grid cards re-route" markdown>
 
--   :re-onramp:{ .lg .middle } **Start · For Leander**
-
-    ---
-
-    What transfers from an RL background, what is new, what the organisers have confirmed, and ten working days.
-
-    [:re-play: The on-ramp](for-leander.md)
-
 -   :re-loop:{ .lg .middle } **1 · The control problem**
 
     ---
@@ -301,6 +293,14 @@ The left navigation tells one story, in this order. Each page's previous and nex
     Every source, how far it was verified, and the search log.
 
     [:re-play: The sources](07-references.md)
+
+-   :re-onramp:{ .lg .middle } **Personal · For Leander**
+
+    ---
+
+    The author's own on-ramp: what transfers from an RL background, what is new, what the organisers have confirmed, and ten working days.
+
+    [:re-play: The on-ramp](for-leander.md)
 
 </div>
 
