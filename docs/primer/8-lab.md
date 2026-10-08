@@ -54,7 +54,7 @@ icon: re/lab
 - **Engine and sensors (left): perturbations the controllers were not trained on.**
     - *Heat flux ×* scales the wall heat (the slow loop).
     - *Fuel turbine ×* and *LOX turbine ×* scale each turbine's torque. DLR randomised turbine efficiencies for the same reason.
-    - *Valve dead time* is the parameter behind DLR's first failed hot-fire test.
+    - *Valve dead time* stands in for the valve-model error that made DLR's first RL hot-fire test oscillate.
     - You can also switch off sensor delays and noise.
 
     Every change shows on the stand as an amber :re-gear: tag at the part it affects. A test case sets these itself.
@@ -113,7 +113,7 @@ Each takes a few minutes. Predict first, then look.
 2. **Feedforward is not control.** Load [feedforward only](8-lab.md?preset=feedforward), then set *heat flux ×* to 1.1. The commands do not change, so the error stays. Now load [PI](8-lab.md?preset=pi&heat=1.1) with the same perturbation.
 3. **Where PI loses.** In [PI on the evaluation profile](8-lab.md?preset=pi), find the step at 27 s (50 → 38 bar while mixture ratio is held). *Predict* which output the PI gets wrong first. Pin the run, then load [PPO](8-lab.md?preset=ppo) at 20 Hz. Then load the earlier [PPO with preview](8-lab.md?preset=ppo-preview): what does it do with TOV *before* the step?
 4. **What preview is worth.** Load [SAC, preview](8-lab.md?preset=sac-preview), pin it, then [SAC, no preview](8-lab.md?preset=sac-nopreview). Where in the profile do the two differ, at steps or during ramps? The challenge gives no preview ([organisers, Oct 2026](../07-references.md#organisers2026)), so the difference is what a challenge entry has to make up by other means.
-5. **Break the valve model.** Raise *valve dead time* to 0.15 s under [PI](8-lab.md?preset=pi&delay=0.15), then under [PPO](8-lab.md?preset=ppo&delay=0.15). Which one starts to oscillate, and in which output? This is the failure mode of DLR's first hot-fire test ([Valves are the actuators](3-valves.md#where-sim-to-real-broke)).
+5. **Break the valve model.** Raise *valve dead time* to 0.15 s under [PI](8-lab.md?preset=pi&delay=0.15), then under [PPO](8-lab.md?preset=ppo&delay=0.15). Which one starts to oscillate, and in which output? A valve-model error of this kind made DLR's first RL hot-fire test oscillate ([Valves are the actuators](3-valves.md#where-sim-to-real-broke)).
 6. **Bandwidth and margin.** Load [PI by bandwidth](8-lab.md?preset=pi&pi=bw) and raise the mixture-ratio loop's bandwidth until its phase margin turns red. *Predict* the frequency it will ring at, then look. Do the same with the pressure loop. Which loop is limited by the delay, and which by the slow heat? Then switch to *tuned* and read off the margins of the gains Nelder–Mead chose.
 7. **Watch it burn.** Load [PPO on the mixture-ratio steps](8-lab.md?preset=ppo&profile=rof) and press *Hot fire*. *Predict* the flame colour at each step before it comes: 3.8 is the bluest, 3.0 the most orange. Then load the [TFV step](8-lab.md?preset=tfv_step) and watch the plume grow, overshoot and sag while the coolant line cools.
 8. **Be the agent.** In the [sandbox](8-lab.md?preset=sandbox&profile=rof), follow the mixture-ratio steps at half speed with TOV alone, then with both valves. Pin your best run and compare it with PI's scores.
