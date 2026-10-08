@@ -7,7 +7,7 @@ icon: re/hotfire
 !!! abstract "In short"
 
     - **A hot-fire test is a scripted sequence**: chill-down, ignition, an open-loop ramp-up, a closed-loop phase lasting seconds, and shutdown. Real interaction is measured in minutes per year.
-    - **DLR's LUMEN model** is EcosimPro with ESA's ESPSS library, validated against hot fire to a few percent. ESPSS needs ESA's approval to use, which is the likeliest reason the challenge promises a *generalised* model. The challenge's generalised simulator needs no EcosimPro licence and runs at about real time ([organisers, Oct 2026](../07-references.md#organisers2026)).
+    - **DLR's LUMEN model** is EcosimPro with ESA's ESPSS library, validated against hot fire to a few percent. ESPSS needs ESA's approval to use. The challenge's generalised simulator needs no EcosimPro licence and runs at about real time ([organisers, Oct 2026](../07-references.md#organisers2026)).
     - The glossary at the end links each term to its chapter.
 
 ## What a hot-fire test looks like
@@ -88,7 +88,7 @@ The LUMEN model is written in EcosimPro, a commercial differential-algebraic mod
 
 On the specific run used for the RL hardware demonstration, model–experiment errors were larger: mean 4.1 % on $p_{cc}$, 4.9 % on coolant flow, maximum 10.6 % ([thesis Table 6.3](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=131)). A 2026 preprint describes a "representative upper-stage rocket engine based on the LUMEN" model, with errors "below 5 % over the full operational envelope" ([Kurudzija et al. 2026](https://doi.org/10.2139/ssrn.6806858), abstract only). It is plausibly the generalised simulator behind the challenge.
 
-ESPSS itself is ESA property: "Any entity interested in using ESPSS needs prior approval from ESA" ([EcosimPro brochure](https://www.ecosimpro.com/wp-content/uploads/2015/02/ecosimpro_brochure_library_espss.pdf)). My inference, not DLR's statement: this, and not just DLR's own IP, is the likeliest source of the "legal issues" mentioned at the bootcamp. It would also explain why the challenge promises a *generalised* model plus a remote evaluation service, rather than the calibrated EcosimPro model itself.
+ESPSS itself is ESA property: "Any entity interested in using ESPSS needs prior approval from ESA" ([EcosimPro brochure](https://www.ecosimpro.com/wp-content/uploads/2015/02/ecosimpro_brochure_library_espss.pdf)).
 
 How this compares with the surrogate in the [Engine Lab](8-lab.md):
 
