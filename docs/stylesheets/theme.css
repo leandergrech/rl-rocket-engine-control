@@ -508,3 +508,87 @@ html.lab-full-open, html.lab-full-open body { overflow: hidden; }
 .md-typeset abbr[title] { text-decoration: underline dotted; text-decoration-color: color-mix(in srgb, currentColor 35%, transparent); text-underline-offset: 0.18em; border-bottom: 0; cursor: help; }
 .md-typeset abbr[title]:hover { text-decoration-color: var(--brand-accent); }
 .re-hero abbr[title] { text-decoration-color: rgba(255, 255, 255, 0.4); }
+
+/* ======================================================================================
+   Lab: earlier agents, the PI's bandwidth, test cases and faults, the scoreboard
+   ====================================================================================== */
+.re-lab { --lab-old: var(--viz-s5); --fault: #e0245e; }
+.lab-group.old { border-color: var(--lab-old); }
+.lab-group.old .re-chip.on { background: var(--lab-old); border-color: var(--lab-old); }
+.hud-panel select:disabled, .hud-panel input:disabled, .hud-panel button:disabled { opacity: 0.45; cursor: not-allowed; }
+.lab-locked:empty { display: none; }
+
+/* PI: gains, margins, loop gain */
+.pi-info { display: grid; gap: 0.25rem; margin: 0.4rem 0 0.3rem; }
+.pi-loop { display: grid; grid-template-columns: auto 1fr; gap: 0 0.5rem; font-size: 0.58rem; line-height: 1.4; padding: 0.25rem 0.45rem; border-radius: 8px;
+  background: var(--md-code-bg-color); box-shadow: inset 3px 0 0 var(--viz-s3); color: var(--md-default-fg-color--light); }
+.pi-loop b { grid-row: span 2; align-self: center; color: var(--md-default-fg-color); font-size: 0.6rem; }
+.pi-loop span { font-variant-numeric: tabular-nums; }
+.pi-loop.warn { box-shadow: inset 3px 0 0 var(--viz-s4); }
+.pi-loop.bad { box-shadow: inset 3px 0 0 var(--viz-s8); }
+.pi-loop.bad span:last-child { color: var(--viz-s8); font-weight: 600; }
+.pi-bode { height: 104px; margin-top: 0.2rem; }
+
+/* faults */
+.fault-list { display: flex; flex-wrap: wrap; gap: 0.25rem; margin: 0.35rem 0; }
+.fault-chip { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.58rem; font-weight: 600; padding: 0.15rem 0.3rem 0.15rem 0.45rem; border-radius: 999px;
+  color: #fff; background: var(--fault); }
+.fault-chip .hud-ic { width: 0.9rem; height: 0.9rem; }
+.fault-x { all: unset; cursor: pointer; display: inline-grid; place-items: center; width: 1rem; height: 1rem; border-radius: 50%; background: rgba(255, 255, 255, 0.2); }
+.fault-x .hud-ic { width: 0.7rem; height: 0.7rem; }
+.fault-free { border-top: 1px dashed var(--re-rule); margin-top: 0.3rem; padding-top: 0.3rem; }
+.fault-free[hidden] { display: none; }
+.hud-panel[data-panel="fault"].perturbed .hud-sum { color: var(--fault); }
+.hud-badge.fault { background: repeating-linear-gradient(-45deg, #c2185b 0 7px, #8e0f42 7px 14px) !important; animation: hud-blink 1.2s ease-in-out infinite; }
+.hud-flag { display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.56rem; font-weight: 700; color: #fff; background: var(--fault); padding: 0.2rem 0.55rem;
+  border-radius: 999px; white-space: nowrap; animation: hud-blink 1s ease-in-out infinite; }
+.hud-flag[hidden] { display: none; }
+.hud-flag .hud-ic { width: 0.85rem; height: 0.85rem; }
+.tel-faults:empty { display: none; }
+.tel-faults { display: grid; gap: 0.2rem; margin-bottom: 0.4rem; }
+.tel-fault { display: grid; grid-template-columns: auto 1fr 3.4rem 2.4rem; align-items: center; gap: 0.35rem; font-size: 0.58rem; color: var(--fault); font-weight: 600; }
+.tel-fault .hud-ic { width: 0.9rem; height: 0.9rem; }
+.tel-fault .tel-fill { background: var(--fault); }
+.tel-fault b { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* fault onsets on the time slider */
+.lab-tslider-wrap { position: relative; flex: 1 1 10rem; min-width: 7rem; display: flex; align-items: center; }
+.lab-tslider-wrap .lab-tslider { flex: 1; min-width: 0; }
+.lab-tmarks { position: absolute; left: 8px; right: 8px; top: 50%; height: 0; pointer-events: none; }
+.lab-tmarks i { position: absolute; top: -9px; width: 3px; height: 18px; margin-left: -1.5px; border-radius: 2px; background: var(--fault); box-shadow: 0 0 0 1px var(--re-panel); }
+.lab-viewer.compact .lab-tslider-wrap { min-width: 3rem; flex-basis: 5rem; }
+
+/* the scoreboard: every controller through every test case */
+.hud-modal { z-index: 7; color: var(--md-default-fg-color); font-size: 0.64rem;
+  background: color-mix(in srgb, var(--re-panel) 94%, transparent); border: 1px solid var(--glass-rule); border-radius: 14px;
+  -webkit-backdrop-filter: blur(14px) saturate(1.3); backdrop-filter: blur(14px) saturate(1.3); box-shadow: 0 16px 48px rgba(5, 10, 30, 0.3); }
+.hud-modal[hidden] { display: none; }
+.lab-viewer[data-mode="hud"] .hud-modal { position: absolute; top: var(--hud-t, 3.3rem); bottom: var(--hud-b, 6rem); left: 50%; transform: translateX(-50%); width: min(62rem, calc(100% - 1.2rem)); overflow: auto; }
+.lab-viewer[data-mode="stack"] .hud-modal { order: 2; overflow-x: auto; box-shadow: none; }
+.tests-prog { height: 4px; border-radius: 999px; background: var(--viz-grid); margin: 0.4rem 0 0.5rem; overflow: hidden; }
+.tests-prog i { display: block; height: 100%; width: 0; background: var(--brand-accent); transition: width 0.1s linear; }
+.tests-status { font-size: 0.6rem; color: var(--md-default-fg-color--light); font-variant-numeric: tabular-nums; }
+.tests-table { overflow-x: auto; }
+.tests-table.stale { opacity: 0.55; }
+.md-typeset .tests-table table { display: table; width: 100%; border-collapse: separate; border-spacing: 3px; font-size: 0.6rem; margin: 0; border: 0; box-shadow: none; }
+.md-typeset .tests-table th, .md-typeset .tests-table td { padding: 0.3rem 0.35rem; border: 0; text-align: center; vertical-align: middle; line-height: 1.25; }
+.md-typeset .tests-table thead th { background: none; font-weight: 600; color: var(--md-default-fg-color); min-width: 4.4rem; }
+.md-typeset .tests-table thead th b { display: block; font-family: var(--heading-font); font-size: 0.8rem; }
+.md-typeset .tests-table thead th small { display: block; font-weight: 400; font-size: 0.52rem; color: var(--md-default-fg-color--light); }
+.md-typeset .tests-table tbody th { text-align: left; white-space: nowrap; font-weight: 600; background: none; }
+.md-typeset .tests-table tbody th small { display: block; font-weight: 400; color: var(--md-default-fg-color--light); font-size: 0.52rem; margin-left: 0.9rem; }
+.md-typeset .tests-table tbody th .dot { display: inline-block; width: 0.5rem; height: 0.5rem; border-radius: 50%; margin-right: 0.4rem; background: var(--lab-fb); }
+.md-typeset .tests-table tr.g-open th .dot { background: var(--lab-open); } .md-typeset .tests-table tr.g-rl th .dot { background: var(--lab-rl); }
+.md-typeset .tests-table tr.g-old th .dot { background: var(--lab-old); }
+.md-typeset .tests-table td { border-radius: 8px; cursor: pointer; min-width: 4.4rem; transition: transform 0.1s; }
+.md-typeset .tests-table td:hover { transform: scale(1.05); box-shadow: 0 0 0 2px var(--brand-accent); }
+.md-typeset .tests-table td b { display: block; font-family: var(--heading-font); font-size: 0.78rem; font-variant-numeric: tabular-nums; }
+.md-typeset .tests-table td small { display: block; font-size: 0.52rem; opacity: 0.85; font-variant-numeric: tabular-nums; }
+.md-typeset .tests-table td small.over { display: inline-block; white-space: nowrap; color: #fff; background: var(--viz-s8); border-radius: 999px; margin-top: 0.1rem; padding: 0 0.35rem; opacity: 1; font-size: 0.5rem; }
+.md-typeset .tests-table td.empty { color: var(--md-default-fg-color--lighter); background: var(--md-code-bg-color); cursor: default; }
+.md-typeset .tests-table td.h1 { background: color-mix(in srgb, var(--viz-s3) 30%, transparent); }
+.md-typeset .tests-table td.h2 { background: color-mix(in srgb, var(--viz-s3) 14%, transparent); }
+.md-typeset .tests-table td.h3 { background: color-mix(in srgb, var(--viz-s4) 22%, transparent); }
+.md-typeset .tests-table td.h4 { background: color-mix(in srgb, var(--viz-s2) 26%, transparent); }
+.md-typeset .tests-table td.h5 { background: color-mix(in srgb, var(--viz-s8) 34%, transparent); }
+.md-typeset .tests-table td.best { box-shadow: inset 0 0 0 2px var(--viz-s3); }

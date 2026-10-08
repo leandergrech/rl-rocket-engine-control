@@ -83,6 +83,14 @@ class Params:
     valve_tau_pos: float = 0.05  # position loop time constant near the target [s], assumed: no overshoot,
     valve_brake: float = 0.5     # braking at this fraction of valve_amax (thesis p. 56: "no overshoot")
 
+    # --- Malfunctions (faults.py). All zero on the healthy engine.
+    drag_o: float = 0.0          # extra bearing friction on the LOX turbopump, as a fraction of its pump torque
+    drag_f: float = 0.0          # the same on the fuel turbopump
+    leak_o: float = 0.0          # fraction of the LOX pump flow lost before the injector
+    leak_f: float = 0.0          # fraction of the fuel pump flow lost before the cooling channels
+    stuck_tfv: float = 0.0       # 1: the valve is frozen where it is
+    stuck_tov: float = 0.0
+
     def to_dict(self) -> dict:
         return asdict(self)
 

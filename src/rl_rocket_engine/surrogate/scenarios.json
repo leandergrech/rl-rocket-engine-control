@@ -1,0 +1,176 @@
+{
+ "note": "The LUMEN Control Challenge's seven test cases (Bareiss et al. 2025) in miniature on this repo's surrogate. The test-case descriptions are the challenge's; every engine change, fault, onset and magnitude is this repo's choice.",
+ "scenarios": {
+  "tc1": {
+   "test_case": 1,
+   "label": "Nominal, known reference",
+   "profile": "eval",
+   "note": "The healthy engine on the 40 s evaluation profile, the same every time."
+  },
+  "tc2": {
+   "test_case": 2,
+   "label": "Nominal, unknown reference",
+   "profile": {
+    "knots": [
+     [
+      0.0,
+      37.68,
+      3.512
+     ],
+     [
+      3.402,
+      37.68,
+      3.512
+     ],
+     [
+      3.403,
+      40.32,
+      3.724
+     ],
+     [
+      8.188,
+      40.32,
+      3.724
+     ],
+     [
+      11.248,
+      49.5,
+      3.509
+     ],
+     [
+      16.639,
+      49.5,
+      3.509
+     ],
+     [
+      19.362,
+      40.08,
+      3.181
+     ],
+     [
+      24.184,
+      40.08,
+      3.181
+     ],
+     [
+      24.185,
+      40.08,
+      3.292
+     ],
+     [
+      28.767,
+      40.08,
+      3.292
+     ],
+     [
+      32.956,
+      39.5,
+      3.292
+     ],
+     [
+      60.0,
+      39.5,
+      3.292
+     ]
+    ],
+    "duration": 30.0
+   },
+   "note": "The healthy engine on a random profile of holds, steps and ramps that no controller has seen."
+  },
+  "tc3": {
+   "test_case": 3,
+   "label": "Engine varies, distribution known",
+   "profile": "eval",
+   "params": {
+    "factors": {
+     "k_tfv": 0.9586,
+     "k_tov": 0.9737,
+     "k_bpv": 1.0301,
+     "valve_amax": 1.0099,
+     "valve_vmax": 0.9351,
+     "q_ref": 0.9947,
+     "r_rc": 0.9979,
+     "kc": 0.9905,
+     "r_inj": 1.0141,
+     "r_o": 0.9768,
+     "eta_pf": 0.9935,
+     "eta_po": 1.0013,
+     "p_tank_o": 0.9431,
+     "p_tank_f": 0.9587,
+     "t_in": 1.0143
+    },
+    "valve_delay": 0.078
+   },
+   "delay": {
+    "p_cc": 0.078,
+    "rof": 0.197
+   },
+   "note": "One engine drawn from DLR's domain-randomisation ranges (thesis Table A.3): valves, heat flux, losses, pump efficiencies, tank pressures, dead time and sensor delays."
+  },
+  "tc4": {
+   "test_case": 4,
+   "label": "Engine changed, nothing known",
+   "profile": "eval",
+   "params": {
+    "factors": {
+     "q_ref": 1.08,
+     "a_to": 0.93,
+     "k_tfv": 0.95
+    },
+    "valve_delay": 0.08
+   },
+   "delay": {
+    "p_cc": 0.15,
+    "rof": 0.25
+   },
+   "note": "A shift outside the training ranges: 8 % more wall heat, a 7 % weaker LOX turbine, a 5 % tighter fuel-turbine path, slower valves and sensors."
+  },
+  "tc5": {
+   "test_case": 5,
+   "label": "Slow drift (ageing)",
+   "profile": "eval",
+   "faults": [
+    {
+     "kind": "ageing",
+     "t0": 2.0,
+     "ramp": 36.0,
+     "mag": 0.12
+    },
+    {
+     "kind": "heat",
+     "t0": 2.0,
+     "ramp": 36.0,
+     "mag": 0.08
+    }
+   ],
+   "note": "Within one episode both turbines lose 12 % of their torque and the wall heat rises 8 %, gradually."
+  },
+  "tc6": {
+   "test_case": 6,
+   "label": "Fault, with a detection signal",
+   "profile": "eval",
+   "flag": true,
+   "faults": [
+    {
+     "kind": "bearing_ftp",
+     "t0": 15.0,
+     "mag": 0.25
+    }
+   ],
+   "note": "The fuel turbopump's bearing wears suddenly at 15 s, and the controller is told. (None of this repo's controllers uses the signal yet.)"
+  },
+  "tc7": {
+   "test_case": 7,
+   "label": "Fault, no detection signal",
+   "profile": "eval",
+   "faults": [
+    {
+     "kind": "stuck_tov",
+     "t0": 20.0,
+     "mag": 1.0
+    }
+   ],
+   "note": "TOV freezes at 20 s, and nobody says so. Only the outputs reveal it."
+  }
+ }
+}

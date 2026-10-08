@@ -25,7 +25,13 @@ What this repository contains:
 - **The literature review** (`docs/`, published to the Pages site): the problem, a 2018–2026 timeline, designs side by side, limitations with numbers, ranked open questions, and verified references.
 - **A domain primer** in nine chapters with interactive widgets, an equation sheet and a glossary.
 - **A surrogate engine and the Engine Lab.** `src/rl_rocket_engine/surrogate/` is a reduced, LUMEN-like expander-bleed model. It is calibrated to the static gains, settling times and overshoot DLR publishes for its LUMEN model (Dresia 2025, Tables 4.6–4.7). Around it are a Gymnasium environment for the 2×2 task and a JavaScript port that runs in the browser. **It is not DLR's simulator**, and its numbers say nothing quantitative about the challenge.
-- **Baselines on the surrogate:** open-loop feedforward, a decoupled gain-scheduled PI, and PPO and SAC with and without reference preview (preview only as an ablation, since the challenge excludes it), each trained in under an hour on a CPU, plus robustness tests.
+- **Baselines on the surrogate**, all trained in under an hour on a CPU:
+    - open-loop feedforward;
+    - a decoupled, gain-scheduled PI, tuned or designed for a chosen bandwidth;
+    - PPO and SAC at 20 Hz without preview, the challenge's setting;
+    - the earlier 10 Hz agents with and without preview, kept as an ablation.
+
+  They are tested for robustness and on the challenge's seven test cases in miniature, including faults: stuck valves, worn bearings, leaks, blockages, sensor faults and drift. The Engine Lab can run every controller through every test case live.
 - **A release checker**, `scripts/check_challenge.py`, which reports new public repositories in `DLR-RA` or LUMEN packages on PyPI.
 
 When the challenge is released, the environment wrapper moves to DLR's simulator (20 Hz, no preview) and every baseline is rerun there.
@@ -50,8 +56,9 @@ docs/                     literature review and primer (MkDocs Material)
 includes/abbreviations.md acronyms spelled out as tooltips on every page
 docs/javascripts/         lumen-model.js (browser port of the surrogate), widgets.js, lab.js
 src/rl_rocket_engine/     challenge_status.py (release checker)
-  surrogate/              model.py, params.py, calibrate.py (+ calibrated.json), trim.py, env.py, pi.py, rl.py, metrics.py
-scripts/                  train.py, evaluate.py, make_lab_data.py, check_challenge.py, reproduce.sh
+  surrogate/              model.py, params.py, calibrate.py (+ calibrated.json), trim.py, env.py, pi.py, rl.py, metrics.py,
+                          faults.py and scenarios.py (+ scenarios.json: the seven test cases in miniature)
+scripts/                  train.py, evaluate.py, make_baseline_docs.py, make_lab_data.py, check_challenge.py, reproduce.sh
 tests/                    surrogate, environment, baselines, Python/JavaScript parity (headless Chrome), docs and charts
 data/                     exported policies and results (surrogate only)
 notebooks/                placeholders until access

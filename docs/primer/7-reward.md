@@ -51,13 +51,13 @@ Past observations are stacked (**history**): "for a typical setting of $N_f$ = 4
 | | DLR test case 1 (five valves, EcosimPro) | This repo (2×2, surrogate) |
 |---|---|---|
 | Actions | TFV, TOV, FCV, XCV, OCV in [−1, 1], scaled to valve ranges | TFV ∈ [0.1, 0.7], TOV ∈ [0.1, 0.5] |
-| Control interval, episode | 0.1 s, 50 s fixed trajectory | 0.1 s, 30 s random holds, steps and ramps in 35–50 bar, $R_{OF}$ 3.0–3.8 |
+| Control interval, episode | 0.1 s, 50 s fixed trajectory | 0.05 s (20 Hz, the challenge's rate; the earlier baselines used 0.1 s), 30 s random holds, steps and ramps in 35–50 bar, $R_{OF}$ 3.0–3.8 |
 | Tracking | eq. 5.7, $\delta$ = 12 | same |
 | Constraint penalty | $\beta$ = 0.5 / 0.2, six constraints | $\beta$ = 0.5, five constraints ($R_{OF}$, turbine temperature, both speeds, $p_{RC}$) |
 | Economic term | $-0.3\,\dot m_{\mathrm{turbines}}$ | off (see below) |
 | Actuator penalty | none in the reward; $\Delta u$ reported | $-0.5\sum\lvert\Delta u\rvert$ per step |
 | Observation per frame | 28 values | 23 with preview, 15 without |
-| Preview, history | $N_f$ = 4; 84 values in total | $N_f$ = 4 (switchable); the current frame and 3 past ones: 92 values with preview, 60 without |
+| Preview, history | $N_f$ = 4; 84 values in total | none for the current agents, as in the challenge; $N_f$ = 4 for the earlier preview agents. The current frame and 3 past ones: 60 values without preview, 92 with |
 | Sensor delays, noise | no sensor delays in test case 1 (the V2 model, [p. 83](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=100)) | 0.1 s on $p_{cc}$, 0.2 s on $R_{OF}$, small noise |
 
 Three deliberate differences:
@@ -70,8 +70,8 @@ Three deliberate differences:
 
     - **The reward is the spec.** Exponential tracking with $\delta$ = 12 costs −0.11 per output at 1 % error and −0.45 at 5 %, against −1 for a total miss. Most of the slope is in the first few percent, which is where the agent learns precision.
     - **Constant penalties are cliffs.** A violation costs the same at 4.01 as at 4.5 in mixture ratio. The agent learns where the cliff is, not how bad it is to fall off; graded penalties or termination change that.
-    - **The challenge gives no preview.** Future set points are not in its observation, because on the real engine the targets are generated in real time ([organisers, Oct 2026](../07-references.md#organisers2026)). This repo keeps preview as a switch only to measure what it is worth: on the surrogate it halves the pressure error ([the baselines](../04a-surrogate-baselines.md)). That is the gap a challenge entry has to close by other means.
-    - **The challenge runs at 20 Hz**, twice this repo's rate (same source). The surrogate's 0.1 s step is the thesis's simulation setting; its environment should move to 0.05 s once the challenge is released.
+    - **The challenge gives no preview.** Future set points are not in its observation, because on the real engine the targets are generated in real time ([organisers, Oct 2026](../07-references.md#organisers2026)). This repo keeps preview as a switch only to measure what it is worth: on the surrogate's earlier 10 Hz agents it halved the pressure error ([the baselines](../04a-surrogate-baselines.md)). The current agents train without it. That is the gap a challenge entry has to close by other means.
+    - **The challenge runs at 20 Hz** (same source), and so does this repo's environment since October 2026. The first baselines ran at 0.1 s, the thesis's simulation setting; they stay in the Lab for comparison.
 
 ??? question "Check yourself (click to open)"
 

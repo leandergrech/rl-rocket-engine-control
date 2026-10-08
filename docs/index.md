@@ -12,7 +12,7 @@ icon: re/engine
 <div class="re-stat"><b>2 × 2</b><span>turbine valves in; chamber pressure and mixture ratio out (<a href="https://w3.onera.fr/ailab/sites/default/files/2025-06/abstractsAI4A5thworkshop_external.pdf#page=55">benchmark design</a>)</span></div>
 <div class="re-stat"><b>1.3 %</b><span>mean tracking error of DLR's SAC controller on the real engine (<a href="https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=130">thesis Table 6.2</a>)</span></div>
 <div class="re-stat"><b>0.5 s vs 20 s</b><span>settling after a TOV step against a TFV step: one fast valve, one slow (<a href="https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=91">Table 4.7</a>)</span></div>
-<div class="re-stat"><b>2.75 → 0.8 %</b><span>chamber-pressure error, decoupled PI against SAC without preview, as in the challenge, on this site's surrogate engine (<a href="04a-surrogate-baselines/">baselines</a>)</span></div>
+<div class="re-stat"><b>2.61 → 1.04 %</b><span>chamber-pressure error, tuned PI against PPO at 20 Hz without preview, as in the challenge, on this site's surrogate engine (<a href="04a-surrogate-baselines/">baselines</a>)</span></div>
 </div>
 
 </div>
@@ -79,7 +79,12 @@ Every statement on this site about LUMEN, its model or DLR's controllers cites o
 2. **One valve is fast and one is slow.** The oxidiser side settles in half a second. The fuel side settles over 5–24 s, because the fuel is also the coolant whose heat drives both turbines ([Fast chamber, slow heat](primer/4-time-scales.md)).
 3. **RL has already flown on this engine, briefly.** DLR's SAC controller tracked four variables at a mean error of 1.3 % over more than 16 s of hot fire, zero-shot from simulation. In simulation the same controller reaches 0.4 % ([thesis Table 6.2](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=130)). The first hardware deployment failed on a valve-model error ([Valves are the actuators](primer/3-valves.md#where-sim-to-real-broke)).
 4. **In simulation, RL beat MPC on speed and constraints; MPC won on fuel.** On a shared 5-valve task SAC reached 0.3 % / 0.1 % tracking error against MPC's 1.4 % / 0.6 %, and settled in 0.7 s against 3.0 s. MPC used 0.38 % less propellant ([thesis p. 93–97](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=110)).
-5. **On this site's surrogate, learned controllers beat a decoupled PI, until the engine changes.** Without preview, as in the challenge, SAC and PPO track chamber pressure to 0.8–1.2 % against the PI's 2.75 %, with no constraint violations. Preview, which the challenge excludes, would halve that error again. A 5 % weaker LOX turbine, which no controller was trained on, leaves the networks with a steady 3 % mixture-ratio offset that the PI's integrator removes ([Baselines on the surrogate](04a-surrogate-baselines.md)). These are surrogate numbers, not LUMEN's. They show where to look: robustness to model error, which is exactly what the challenge's test cases 3–7 probe.
+5. **On this site's surrogate, no controller wins every test case.** At 20 Hz without preview, as in the challenge, PPO tracks chamber pressure to 1.0 % against 2.6 % for a tuned PI, with no time over a limit. Preview, which the challenge excludes, halved that error for the earlier 10 Hz agents. But on the challenge's test cases in miniature the picture splits ([test cases](04a-surrogate-baselines.md#test-cases)):
+    - the networks win nominal tracking;
+    - when the engine changes, drifts or wears a bearing, they lose the mixture ratio and a PI does better;
+    - when a valve sticks, everyone loses the mixture ratio.
+
+    These are surrogate numbers, not LUMEN's. They show where to look: robustness and faults, which is what the challenge's test cases 3–7 probe. The [Engine Lab](primer/8-lab.md) runs the whole matrix live in your browser.
 
 ## The sources, curated
 
@@ -269,7 +274,7 @@ The left navigation tells one story, in this order. Each page's previous and nex
 
     ---
 
-    This repo's dry run: PI, PPO and SAC on the 2×2 task, with robustness tests and the networks live in the Lab.
+    This repo's dry run at 20 Hz: PI (tuned or by bandwidth), PPO and SAC on the 2×2 task and the seven test cases with faults, and the networks live in the Lab.
 
     [:re-play: The dry run](04a-surrogate-baselines.md)
 

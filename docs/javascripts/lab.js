@@ -12,17 +12,19 @@
 (function () {
   "use strict";
   const PRESETS = {
-    feedforward: { group: "open", label: "Feedforward only", chip: "Feedforward", ctl: "OPEN", story: "<b>Open loop.</b> Each 0.1 s the valves go to the openings that would hold the set point in steady state (the trim table), with no measurement at all. On the nominal engine it gets the levels right once everything has settled; the slow heat budget makes the transients wrong for 10–20 s, and any change to the engine (try <i>heat flux ×</i>) leaves a permanent error." },
+    feedforward: { group: "open", label: "Feedforward only", chip: "Feedforward", ctl: "OPEN", story: "<b>Open loop.</b> Each 0.05 s the valves go to the openings that would hold the set point in steady state (the trim table), with no measurement at all. On the nominal engine it gets the levels right once everything has settled; the slow heat budget makes the transients wrong for 10–20 s, and any change to the engine (try <i>heat flux ×</i>) leaves a permanent error." },
     tfv_step: { group: "open", label: "TFV step", chip: "TFV step", ctl: "OPEN", story: "<b>Open loop: TFV +0.1 at t = 2 s</b> from the 40 bar point. Pressure overshoots to about +6.5 bar within two seconds, then sags towards +3.4 bar over ~20 s as the coolant warms less: more coolant flow through the same heat. In DLR's model the peak is 6.5 bar against a final 3.7 bar (thesis p. 73 and Tables 4.6–4.7); the surrogate was fitted to those numbers." },
     tov_step: { group: "open", label: "TOV step", chip: "TOV step", ctl: "OPEN", story: "<b>Open loop: TOV +0.1 at t = 2 s.</b> The oxidiser side answers in about half a second: more LOX, higher pressure and mixture ratio, almost nothing on the fuel side. Compare with the TFV step: one action channel is fast, the other slow." },
-    pi: { group: "fb", label: "Decoupled PI", chip: "Decoupled PI", ctl: "PI", story: "<b>Feedback.</b> Feedforward from the trim table, a static decoupler (the inverse of the local gain matrix) and two PI loops on the measured, delayed p_cc and ROF, gains tuned on 12 training episodes. Watch the pressure loop fight the slow thermal sag after each TFV move, and the coupling: every pressure correction disturbs ROF. <i>PI gain ×</i> scales both loops." },
-    "ppo-preview": { group: "rl", label: "PPO, preview", chip: "PPO + preview", ctl: "PPO", policy: true, story: "<b>Learned feedback.</b> A 2×128 tanh network trained with PPO (3 M steps, 17 min on a laptop CPU). It reads the last four observation frames and the set points for the next 0.5 s, so it can start moving before a step arrives. The challenge gives no preview (its targets are generated in real time), so this preset shows what looking ahead is worth, not what an entry can do." },
-    "ppo-nopreview": { group: "rl", label: "PPO, no preview", chip: "PPO", ctl: "PPO", policy: true, story: "<b>Learned feedback, no preview.</b> Same as PPO with preview, but it only knows the set point for the coming 0.1 s. Its pressure error is about twice that of PPO with preview, mostly in transients (27 min of training). This is the observation the challenge allows." },
-    "sac-preview": { group: "rl", label: "SAC, preview", chip: "SAC + preview", ctl: "SAC", policy: true, story: "<b>Learned feedback.</b> A 2×128 ReLU network trained with SAC (450 k steps, 55 min), the algorithm DLR used on LUMEN. Reads the same observation as PPO with preview, which the challenge does not allow: compare it with SAC without preview." },
-    "sac-nopreview": { group: "rl", label: "SAC, no preview", chip: "SAC", ctl: "SAC", policy: true, story: "<b>Learned feedback, no preview.</b> SAC without the 0.5 s look-ahead (500 k steps, 50 min). This is the observation the challenge allows." },
+    pi: { group: "fb", label: "Decoupled PI", chip: "Decoupled PI", ctl: "PI", story: "<b>Feedback, at 20 Hz.</b> Feedforward from the trim table, a static decoupler (the inverse of the local gain matrix) and two PI loops on the measured, delayed p_cc and ROF. Set the gains in the Controller panel: <i>tuned</i> by Nelder–Mead on 12 training episodes, or <i>by bandwidth</i>, designed per loop from a first-order-plus-dead-time model of each decoupled channel (SIMC rules). Push a loop's bandwidth up and its phase margin falls; below about 30° it starts to ring. Watch also the pressure loop fight the slow thermal sag after each TFV move, and the coupling: every pressure correction disturbs ROF." },
+    ppo: { group: "rl", label: "PPO (20 Hz)", chip: "PPO", ctl: "PPO", policy: true, story: "<b>Learned feedback, in the challenge's setting:</b> 20 Hz and no preview of future set points. A 2×128 tanh network trained with PPO (2.7 M steps in 55 min on a shared laptop CPU). It reads the last four observation frames, 0.15 s of history." },
+    sac: { group: "rl", label: "SAC (20 Hz)", chip: "SAC", ctl: "SAC", policy: true, story: "<b>Learned feedback, in the challenge's setting:</b> 20 Hz, no preview. A 2×128 ReLU network trained with SAC ), the algorithm DLR used on LUMEN. Within the same 55 min on a shared CPU it reached only 170 k steps: it is not converged, and it chatters, with about twenty times PPO's valve travel. Watch the valve dials." },
+    "ppo-preview": { group: "old", label: "PPO, preview (10 Hz)", chip: "PPO + preview", ctl: "PPO", policy: true, story: "<b>Earlier agent, 10 Hz.</b> A 2×128 tanh network trained with PPO (3 M steps, 17 min on a laptop CPU). It reads the last four observation frames and the set points for the next 0.5 s, so it can start moving before a step arrives. The challenge gives no preview (its targets are generated in real time), so this preset shows what looking ahead is worth, not what an entry can do." },
+    "ppo-nopreview": { group: "old", label: "PPO, no preview (10 Hz)", chip: "PPO", ctl: "PPO", policy: true, story: "<b>Earlier agent, 10 Hz, no preview.</b> Same as PPO with preview, but it only knows the set point for the coming 0.1 s. Its pressure error is about twice that of PPO with preview, mostly in transients (27 min of training). The challenge runs at 20 Hz; the agents in the row above are retrained for that." },
+    "sac-preview": { group: "old", label: "SAC, preview (10 Hz)", chip: "SAC + preview", ctl: "SAC", policy: true, story: "<b>Earlier agent, 10 Hz.</b> A 2×128 ReLU network trained with SAC (450 k steps, 55 min), the algorithm DLR used on LUMEN. Reads the same observation as PPO with preview, which the challenge does not allow: compare it with SAC without preview." },
+    "sac-nopreview": { group: "old", label: "SAC, no preview (10 Hz)", chip: "SAC", ctl: "SAC", policy: true, story: "<b>Earlier agent, 10 Hz, no preview.</b> SAC without the 0.5 s look-ahead (500 k steps, 50 min). The challenge runs at 20 Hz; the agents in the row above are retrained for that." },
     sandbox: { group: "you", label: "Sandbox", chip: "Sandbox: you drive", ctl: "YOU", story: "<b>You turn the knobs.</b> Press <i>Play</i> (or the space bar) and follow the dashed set points with TFV and TOV: use the sliders in the Controller panel, drag the valves on the stand up and down, or use the arrow keys (← → for TFV, ↓ ↑ for TOV). It runs in real time, or slower. Pin your run and compare it with PI." },
   };
-  const GROUPS = { open: "Open loop", fb: "Feedback", rl: "Learned", you: "You" };
+  const GROUPS = { open: "Open loop", fb: "Feedback", rl: "Learned · 20 Hz", old: "Earlier · 10 Hz", you: "You" };
   const PROFILES = { eval: "Evaluation profile, 40 s", ladder: "Pressure ladder", rof: "Mixture-ratio steps", random: "Random (new each click)" };
   // Every acronym the Lab shows. includes/abbreviations.md spells out the same ones for the whole site
   // (tests/test_docs.py checks that the two agree).
@@ -73,6 +75,9 @@
     plus: '<path d="M12 6v12M6 12h12"/><circle cx="12" cy="12" r="9.5" opacity=".35"/>',
     minus: '<path d="M6 12h12"/><circle cx="12" cy="12" r="9.5" opacity=".35"/>',
     home: '<path d="M4 11l8-7 8 7M6 9.5V20h12V9.5"/>',
+    flag: '<path d="M5 21V4"/><path d="M5 4.5c3-1.6 5.5 1.4 8.5 0s4.5-.8 5.5 0v8.5c-1-.8-2.5-1.4-5.5 0s-5.5-1.6-8.5 0" fill="currentColor" fill-opacity=".22"/>',
+    warn: '<path d="M10.3 4.2 2.9 17.4A2 2 0 0 0 4.6 20.4h14.8a2 2 0 0 0 1.7-3L13.7 4.2a2 2 0 0 0-3.4 0z" fill="currentColor" fill-opacity=".22"/><path d="M12 9.2v4.4"/><circle cx="12" cy="16.8" r=".9" fill="currentColor"/>',
+    x: '<path d="M7 7l10 10M17 7L7 17"/>',
     play: '<path d="M8 5.6v12.8a.9.9 0 0 0 1.4.75l9.6-6.4a.9.9 0 0 0 0-1.5L9.4 4.85A.9.9 0 0 0 8 5.6z" fill="currentColor" stroke="none"/>',
     pause: '<rect x="6.5" y="5" width="3.8" height="14" rx="1.2" fill="currentColor" stroke="none"/><rect x="13.7" y="5" width="3.8" height="14" rx="1.2" fill="currentColor" stroke="none"/>',
     gear: '<path d="M12 3.2l1.4 2.2 2.5-.7.4 2.6 2.5.9-.9 2.4 1.9 1.8-1.9 1.8.9 2.4-2.5.9-.4 2.6-2.5-.7L12 20.8l-1.4-2.2-2.5.7-.4-2.6-2.5-.9.9-2.4L4.2 12l1.9-1.8-.9-2.4 2.5-.9.4-2.6 2.5.7z"/><circle cx="12" cy="12" r="2.8" fill="currentColor" fill-opacity=".25"/>',
@@ -90,9 +95,9 @@
     set(k, v) { try { localStorage.setItem("re-lab:" + k, JSON.stringify(v)); } catch (e) { /* private mode */ } },
   };
 
-  function profile(M, name, seed) {
-    if (name === "ladder") return M.profileFromKnots([[0, 40, 3.4], [4, 40, 3.4], [4.001, 45, 3.4], [10, 45, 3.4], [10.001, 50, 3.4], [16, 50, 3.4], [16.001, 42, 3.4], [22, 42, 3.4], [22.001, 36, 3.4], [28, 36, 3.4], [31, 44, 3.4], [60, 44, 3.4]], 36);
-    if (name === "rof") return M.profileFromKnots([[0, 42, 3.4], [4, 42, 3.4], [4.001, 42, 3.8], [11, 42, 3.8], [11.001, 42, 3.0], [18, 42, 3.0], [18.001, 42, 3.6], [25, 42, 3.6], [27, 42, 3.2], [60, 42, 3.2]], 32);
+  function profile(M, name, seed, dt) {
+    if (name === "ladder") return M.profileFromKnots([[0, 40, 3.4], [4, 40, 3.4], [4.001, 45, 3.4], [10, 45, 3.4], [10.001, 50, 3.4], [16, 50, 3.4], [16.001, 42, 3.4], [22, 42, 3.4], [22.001, 36, 3.4], [28, 36, 3.4], [31, 44, 3.4], [60, 44, 3.4]], 36, dt);
+    if (name === "rof") return M.profileFromKnots([[0, 42, 3.4], [4, 42, 3.4], [4.001, 42, 3.8], [11, 42, 3.8], [11.001, 42, 3.0], [18, 42, 3.0], [18.001, 42, 3.6], [25, 42, 3.6], [27, 42, 3.2], [60, 42, 3.2]], 32, dt);
     if (name === "random") {
       const r = M.rng(seed), U = (a, b) => a + (b - a) * r.uniform();
       let p0 = U(35, 50), r0 = U(3, 3.8), tk = U(2, 5);
@@ -104,9 +109,14 @@
         p0 = p1; r0 = r1; tk += ramp + U(2.5, 6);
       }
       knots.push([60, p0, r0]);
-      return M.profileFromKnots(knots, 30);
+      return M.profileFromKnots(knots, 30, dt);
     }
-    return M.evalProfile();
+    return M.evalProfile(dt);
+  }
+  // "bearing_ftp@15,stuck_tov@20" -> faults (a link can carry malfunctions)
+  function parseFaults(text, kinds) {
+    if (!text) return [];
+    return text.split(",").map((t) => { const [kind, t0] = t.split("@"); return kinds[kind] ? { kind, t0: +(t0 || 10), mag: kinds[kind].mag, ramp: 0 } : null; }).filter(Boolean);
   }
 
   async function lab(box) {
@@ -119,13 +129,17 @@
       preset: PRESETS[q.get("preset")] ? q.get("preset") : "pi",
       profile: PROFILES[q.get("profile")] ? q.get("profile") : "eval",
       seed: 1, heat: +(q.get("heat") || 1), tf: +(q.get("fuelturbine") || 1), to: +(q.get("loxturbine") || 1), delay: +(q.get("delay") || D.params.valve_delay),
-      sensorDelay: q.get("sensors") !== "ideal", noise: q.get("noise") !== "0", gain: +(q.get("gain") || 1),
+      sensorDelay: q.get("sensors") !== "ideal", noise: q.get("noise") !== "0",
+      piMode: q.get("pi") === "bw" || q.get("pbw") || q.get("rbw") ? "bw" : "tuned",
+      pbw: +(q.get("pbw") || D.pi_bandwidth[0]), rbw: +(q.get("rbw") || D.pi_bandwidth[1]),
+      test: D.scenarios[q.get("test")] ? q.get("test") : null, faults: parseFaults(q.get("fault"), D.faults),
     };
+    const dtRun = () => (run && run.dt) || M.DT;  // each run steps at its controller's rate (20 Hz, or 10 Hz for the earlier agents)
     let run = null, pins = [], cursor = null, playing = null, mode = null, seqState = "run", shown = null;
     const rp = { on: false, k: 0, last: 0, drawn: 0, played: false };  // replay of the episode on the stand
     const sand = { u: [D.params.x_tfv_ref, D.params.x_tov_ref], ep: null, rows: [] };
     const layers = Object.assign({ parts: null, flows: false, signals: true, callouts: true, caption: true }, store.get("layers") || {});
-    const groupColor = (gk) => V.css({ open: "--viz-s4", fb: "--viz-s3", rl: "--viz-s7", you: "--brand-accent" }[gk]);
+    const groupColor = (gk) => V.css({ open: "--viz-s4", fb: "--viz-s3", rl: "--viz-s7", old: "--viz-s5", you: "--brand-accent" }[gk]);
 
     /* ================================================================ the viewer */
     const viewer = el("div", { class: "lab-viewer", tabindex: "0", "aria-label": "Engine Lab: the test stand and its controls. Keys: space plays, F full screen, ? help." });
@@ -133,7 +147,9 @@
     // top bar: status badge and title on the left, tool buttons on the right
     const badge = el("span", { class: "hud-badge" }, "HOT FIRE");
     const tMain = el("b", {}), tSub = el("span", {});
-    const hudTop = el("div", { class: "hud-top" }, el("div", { class: "hud-titlebox" }, badge, el("div", { class: "hud-title" }, tMain, tSub)));
+    const flagChip = el("span", { class: "hud-flag", title: "Test case 6: the controller is told that a fault has happened" });
+    flagChip.hidden = true;
+    const hudTop = el("div", { class: "hud-top" }, el("div", { class: "hud-titlebox" }, badge, el("div", { class: "hud-title" }, tMain, tSub), flagChip));
     const tools = el("div", { class: "hud-tools", role: "toolbar", "aria-label": "Viewer tools" });
     hudTop.append(tools);
     const dockL = el("div", { class: "hud-dock hud-dock-l" }), dockR = el("div", { class: "hud-dock hud-dock-r" });
@@ -151,7 +167,7 @@
       p.set = (open, byUser) => {
         p.open = open; root.classList.toggle("closed", !open); head.setAttribute("aria-expanded", String(open));
         if (byUser) store.set(`panel-${mode}-${id}`, open);
-        layoutSoon(); if (open) requestAnimationFrame(draw);
+        layoutSoon(); if (open) requestAnimationFrame(() => { draw(); if (id === "ctl" && st.preset === "pi") piInfo(); });
       };
       head.addEventListener("click", () => p.set(!p.open, true));
       return p;
@@ -189,6 +205,7 @@
     tool("layers", svg(ICON.tag), "Labels", "Labels on the stand", () => showCard("layers"));
     tool("acr", el("span", { class: "hud-az" }, "A–Z"), "Acronyms", "Acronyms spelled out", () => showCard("acr"));
     tool("about", svg(ICON.help), "About", "About this view, keys", () => showCard("about"));
+    tool("tests", svg(ICON.flag), "Tests", "Run every controller through every test case", () => toggleTests());
     const fullBtn = tool("full", svg(ICON.full), null, "Full screen (F)", () => toggleFull());
 
     cAcr.body.append(...ACRONYMS.map(([g, items]) => el("div", { class: "acr-group" }, el("h4", {}, g),
@@ -221,9 +238,9 @@
       el("p", { class: "hud-more" }, el("a", { href: "#model-card" }, "Model card"), ": what the surrogate is, how it was calibrated and where it is wrong."));
 
     /* ---- panels: controller and engine on the left, telemetry and score on the right ---- */
-    const pCtl = panel("ctl", "Controller"), pEng = panel("eng", "Engine and sensors"), pTel = panel("tel", "Telemetry"), pScore = panel("score", "Score");
-    dockL.append(pCtl.root, pEng.root); dockR.append(pTel.root, pScore.root);
-    const PANELS = [pCtl, pEng, pTel, pScore];
+    const pCtl = panel("ctl", "Controller"), pEng = panel("eng", "Engine and sensors"), pFault = panel("fault", "Test cases and faults"), pTel = panel("tel", "Telemetry"), pScore = panel("score", "Score");
+    dockL.append(pCtl.root, pFault.root, pEng.root); dockR.append(pTel.root, pScore.root);
+    const PANELS = [pCtl, pFault, pEng, pTel, pScore];
 
     const presets = el("div", { class: "lab-presets" });
     for (const [gk, gname] of Object.entries(GROUPS)) {
@@ -244,15 +261,97 @@
     const ctlDelay = V.slider("valve dead time [s]", 0.0, 0.15, 0.005, st.delay, V.fmt(3), (v) => { st.delay = v; update(); });
     const chkSensor = el("input", { type: "checkbox" }); chkSensor.checked = st.sensorDelay; chkSensor.addEventListener("change", () => { st.sensorDelay = chkSensor.checked; update(); });
     const chkNoise = el("input", { type: "checkbox" }); chkNoise.checked = st.noise; chkNoise.addEventListener("change", () => { st.noise = chkNoise.checked; update(); });
-    const ctlGain = V.slider("PI gain ×", 0.25, 2.5, 0.05, st.gain, V.fmt(2), (v) => { st.gain = v; update(); });
     const reset = el("button", { class: "re-btn", type: "button", onclick: () => {
-      Object.assign(st, { heat: 1, tf: 1, to: 1, delay: D.params.valve_delay, sensorDelay: true, noise: true, gain: 1 });
-      ctlHeat.set(1); ctlTf.set(1); ctlTo.set(1); ctlDelay.set(st.delay); ctlGain.set(1); chkSensor.checked = true; chkNoise.checked = true; update();
+      Object.assign(st, { heat: 1, tf: 1, to: 1, delay: D.params.valve_delay, sensorDelay: true, noise: true });
+      ctlHeat.set(1); ctlTf.set(1); ctlTo.set(1); ctlDelay.set(st.delay); chkSensor.checked = true; chkNoise.checked = true; update();
     } }, "Reset to calibrated");
+    const engNote = el("div", { class: "re-note lab-locked" });
+
+    /* ---- the PI: tuned gains, or gains designed for a bandwidth per loop ---- */
+    let updTimer = 0;
+    const updateSoon = () => { clearTimeout(updTimer); updTimer = setTimeout(update, 160); };
+    const piMode = V.select("gains", [["tuned", "tuned on episodes"], ["bw", "set by bandwidth"]], st.piMode, (v) => { st.piMode = v; update(); });
+    const logSlider = (label, v0, set) => {
+      const s = V.slider(label, Math.log10(0.05), Math.log10(2), 0.01, Math.log10(v0), (x) => (10 ** x).toFixed(2), (x) => { set(+(10 ** x).toFixed(3)); piInfo(); updateSoon(); });
+      return s;
+    };
+    const bwP = logSlider("pressure loop bandwidth [Hz]", st.pbw, (v) => { st.pbw = v; });
+    const bwR = logSlider("mixture-ratio loop bandwidth [Hz]", st.rbw, (v) => { st.rbw = v; });
+    const piBox = el("div", { class: "pi-info" });
+    const bode = V.canvas(104); bode.classList.add("pi-bode");
+    const piDefault = el("button", { class: "re-btn", type: "button", title: "The bandwidths that scored best on the 12 training episodes", onclick: () => {
+      [st.pbw, st.rbw] = D.pi_bandwidth; bwP.set(Math.log10(st.pbw)); bwR.set(Math.log10(st.rbw)); piInfo(); update(); } }, "Default");
+    function piGainsFor(mode) { return mode === "bw" ? M.piFromBandwidth(st.pbw, st.rbw, D.pi_loops) : D.pi_gains; }
+    function piInfo() {
+      const g = piGainsFor(st.piMode), m = M.loopMargins(g, D.pi_loops);
+      const cls = (pm) => (pm < 30 ? "bad" : pm < 45 ? "warn" : "ok");
+      const row = (name, kp, ki, mm) => el("div", { class: "pi-loop " + cls(mm.pm) }, el("b", {}, name),
+        el("span", {}, `K_p ${kp.toFixed(2)} · K_i ${ki.toFixed(2)} /s`), el("span", {}, `crossover ${mm.fc.toFixed(2)} Hz · phase margin ${mm.pm.toFixed(0)}°`));
+      piBox.replaceChildren(row("pressure", g.kp_p, g.ki_p, m.p), row("mixture ratio", g.kp_r, g.ki_r, m.rof));
+      drawBode(g, m);
+      pCtl.sum.textContent = st.preset === "pi" ? (st.piMode === "bw" ? `PI · ${st.pbw.toFixed(2)} / ${st.rbw.toFixed(2)} Hz` : "PI · tuned") : PRESETS[st.preset].chip;
+    }
+    // Loop gain |L(j2πf)| of both loops with their identified models; where it crosses 0 dB is the crossover.
+    function drawBode(g, m) {
+      const dpr = window.devicePixelRatio || 1, w = bode.clientWidth || 240, h = bode.clientHeight || 104;
+      if (!w) return;
+      bode.width = Math.round(w * dpr); bode.height = Math.round(h * dpr);
+      const c = bode.getContext("2d"); c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, h);
+      const L = 30, R = 6, T = 6, B = 16, f0 = 0.01, f1 = 10, d0 = -30, d1 = 30;
+      const X = (f) => L + (Math.log10(f) - Math.log10(f0)) / (Math.log10(f1) - Math.log10(f0)) * (w - L - R);
+      const Y = (db) => T + (1 - (Math.max(d0, Math.min(d1, db)) - d0) / (d1 - d0)) * (h - T - B);
+      c.font = "9px Inter, sans-serif"; c.fillStyle = V.css("--viz-ink-2"); c.strokeStyle = V.css("--viz-grid"); c.lineWidth = 1;
+      for (const f of [0.01, 0.1, 1, 10]) { c.beginPath(); c.moveTo(X(f), T); c.lineTo(X(f), h - B); c.stroke(); c.textAlign = "center"; c.fillText(f >= 1 ? f + " Hz" : String(f), X(f), h - 4); }
+      for (const db of [-20, 0, 20]) { c.beginPath(); c.moveTo(L, Y(db)); c.lineTo(w - R, Y(db)); c.strokeStyle = db === 0 ? V.css("--viz-ink-2") : V.css("--viz-grid"); c.stroke(); c.textAlign = "right"; c.fillText(db + " dB", L - 3, Y(db) + 3); }
+      for (const [name, kp, ki, col] of [["p", g.kp_p, g.ki_p, V.series(1)], ["rof", g.kp_r, g.ki_r, V.series(2)]]) {
+        const lp = D.pi_loops[name];
+        c.beginPath();
+        for (let i = 0; i <= 80; i++) {
+          const f = f0 * Math.pow(f1 / f0, i / 80), wv = 2 * Math.PI * f;
+          const mag = Math.hypot(kp, ki / wv) * lp.k / Math.hypot(1, wv * lp.tau);
+          const y = Y(20 * Math.log10(mag));
+          i ? c.lineTo(X(f), y) : c.moveTo(X(f), y);
+        }
+        c.strokeStyle = col; c.lineWidth = 1.8; c.stroke();
+        c.beginPath(); c.arc(X(m[name].fc), Y(0), 3.5, 0, 2 * Math.PI); c.fillStyle = col; c.fill();
+      }
+    }
+
+    /* ---- test cases and faults ---- */
+    const testSel = V.select("test case", [["", "free: your settings"], ...Object.entries(D.scenarios).map(([k, sc]) => [k, `${sc.test_case} · ${sc.label}`])], st.test || "", (v) => { st.test = v || null; update(); });
+    const testNote = el("div", { class: "re-note" });
+    const kindSel = V.select("fault", Object.entries(D.faults).map(([k, f]) => [k, f.label]), "bearing_ftp", () => { magS.set(1); });
+    const onsetS = V.slider("onset [s]", 1, 35, 0.5, 12, V.fmt(1), () => {});
+    const magS = V.slider("severity × default", 0.25, 2, 0.05, 1, V.fmt(2), () => {});
+    const rampSel = V.select("comes on", [["0", "suddenly"], ["5", "over 5 s"], ["20", "over 20 s"]], "0", () => {});
+    const faultList = el("div", { class: "fault-list" });
+    const addFault = el("button", { class: "re-btn re-primary", type: "button", onclick: () => {
+      const k = kindSel.select.value;
+      st.faults = st.faults.concat([{ kind: k, t0: +onsetS.input.value, mag: +(D.faults[k].mag * +magS.input.value).toFixed(4), ramp: +rampSel.select.value }]).slice(-3);
+      update();
+    } }, "Add fault");
+    const randomFault = el("button", { class: "re-btn", type: "button", onclick: () => {
+      const ks = Object.keys(D.faults), k = ks[Math.floor(Math.random() * ks.length)];
+      st.faults = [{ kind: k, t0: +(6 + Math.random() * 20).toFixed(1), mag: D.faults[k].mag, ramp: 0 }];
+      update();
+    } }, "Random fault");
+    const clearFaults = el("button", { class: "re-btn", type: "button", onclick: () => { st.faults = []; update(); } }, "Clear");
+    const freeBox = el("div", { class: "fault-free" }, kindSel, onsetS, magS, rampSel, el("div", { class: "lab-row" }, addFault, randomFault, clearFaults));
+    const testsBtn = el("button", { class: "re-btn", type: "button", onclick: () => toggleTests(true) }, svg(ICON.flag), " Test every controller");
+    pFault.body.append(testSel, testNote, faultList, freeBox, el("div", { class: "lab-row" }, testsBtn),
+      el("div", { class: "re-note" }, "Test cases 1–7 are the challenge's, in miniature; the engine changes, faults, onsets and sizes are this site's choices. A fault shows on the stand the moment it starts."));
+    function faultLabel(f) { return D.faults[f.kind] ? D.faults[f.kind].label : f.kind; }
+    function drawFaultList() {
+      const list = st.test ? (D.scenarios[st.test].faults || []) : st.faults;
+      faultList.replaceChildren(...list.map((f, i) => el("span", { class: "fault-chip" }, svg(ICON.warn),
+        `${faultLabel(f)} · ${f.t0} s${f.ramp ? `, over ${f.ramp} s` : ""}`,
+        st.test ? null : el("button", { type: "button", class: "fault-x", "aria-label": "Remove " + faultLabel(f), onclick: () => { st.faults = st.faults.filter((_, j) => j !== i); update(); } }, svg(ICON.x)))));
+      if (!list.length) faultList.append(el("span", { class: "re-note" }, st.test ? "This test case has no fault." : "No fault yet. Add one below, or pick a test case."));
+    }
     pEng.body.append(ctlHeat, ctlTf, ctlTo, ctlDelay,
       el("label", { class: "re-ctl" }, el("span", {}, "sensor delays (p_cc 0.1 s, ROF 0.2 s)"), chkSensor),
       el("label", { class: "re-ctl" }, el("span", {}, "sensor noise"), chkNoise),
-      el("div", { class: "lab-row" }, reset),
+      el("div", { class: "lab-row" }, reset), engNote,
       el("div", { class: "re-note" }, "Perturbations the controllers were not trained on. They show on the stand as amber ", svg(ICON.gear), " tags."));
 
     // sandbox controls
@@ -279,7 +378,8 @@
     limBox.append(...limEls.map((x) => x.row));
     const readsLine = el("div", { class: "tel-reads" });
     const spP = V.canvas(64), spR = V.canvas(64);
-    pTel.body.append(gauge, readsLine, limBox, el("div", { class: "tel-spark" }, el("span", {}, "p_cc"), spP), el("div", { class: "tel-spark" }, el("span", {}, "ROF"), spR));
+    const telFaults = el("div", { class: "tel-faults" });
+    pTel.body.append(gauge, readsLine, telFaults, limBox, el("div", { class: "tel-spark" }, el("span", {}, "p_cc"), spP), el("div", { class: "tel-spark" }, el("span", {}, "ROF"), spR));
 
     // score
     const scores = el("div", { class: "lab-scores" });
@@ -298,7 +398,9 @@
       el("button", { class: "hud-tool", type: "button", title: "Zoom out (−)", "aria-label": "Zoom out", onclick: () => stand && stand.zoomBy(1 / 1.3) }, svg(ICON.minus)),
       el("button", { class: "hud-tool", type: "button", title: "Zoom in (+)", "aria-label": "Zoom in", onclick: () => stand && stand.zoomBy(1.3) }, svg(ICON.plus)),
       el("button", { class: "hud-tool", type: "button", title: "Whole stand (0)", "aria-label": "Show the whole stand", onclick: () => stand && stand.resetZoom() }, svg(ICON.home)));
-    const transport = el("div", { class: "lab-transport" }, sPlay, sTime, sSlider, sSpeed, el("label", { class: "re-ctl", title: "Play a start-up before the episode and a shutdown after it" }, sSeq, el("span", {}, "start-up", el("span", { class: "hud-long" }, " and shutdown"))),
+    const sMarks = el("span", { class: "lab-tmarks", "aria-hidden": "true" });
+    const sWrap = el("span", { class: "lab-tslider-wrap" }, sSlider, sMarks);
+    const transport = el("div", { class: "lab-transport" }, sPlay, sTime, sWrap, sSpeed, el("label", { class: "re-ctl", title: "Play a start-up before the episode and a shutdown after it" }, sSeq, el("span", {}, "start-up", el("span", { class: "hud-long" }, " and shutdown"))),
       el("span", { class: "hud-disclaimer" }, el("b", {}, "Surrogate engine, not DLR's simulator."), el("span", { class: "hud-long" }, " Schematic; flame, steam and colours are coarse guesses.")), zoomBox);
     hudBottom.append(caption, transport);
 
@@ -328,6 +430,7 @@
       seqState = s.state;
       badge.textContent = s.text;
       badge.style.background = s.color;
+      badge.classList.toggle("fault", s.kind === "fault");
       const on = s.state === "run" || s.state === "ignition" || s.state === "shutdown";
       viewer.classList.toggle("firing", on);
       if (s.state === "off" && st.preset !== "sandbox" && !rp.on) btnLabel(sPlay, "play", "Hot fire");
@@ -354,7 +457,8 @@
         if (m === "hud") hudTop.append(tools); else scene.after(tools);
         // what is unfolded at first: as much as leaves the engine room to breathe
         const h = full ? window.innerHeight : Math.min(900, Math.max(540, window.innerHeight - 68)), roomy = w >= 1250;
-        const def = m === "hud" ? { ctl: h >= 560, eng: roomy && h >= 640, tel: roomy || w >= 1150, score: roomy && h >= 800 } : { ctl: true, eng: false, tel: false, score: false };
+        const def = m === "hud" ? { ctl: h >= 560, fault: !!(st.test || st.faults.length) && h >= 560, eng: roomy && h >= 640 && !st.test, tel: roomy || w >= 1150, score: roomy && h >= 800 }
+          : { ctl: true, fault: !!(st.test || st.faults.length), eng: false, tel: false, score: false };
         for (const p of PANELS) { const saved = store.get(`panel-${m}-${p.id}`); p.set(saved == null ? def[p.id] : saved); }
         applyLayers();
       }
@@ -406,8 +510,16 @@
       if (!r) return;
       if (st.preset === "sandbox") r = Object.assign({}, r, { u_tfv: sand.u[0], u_tov: sand.u[1] });
       shown = r;
-      if (stand) stand.setRow(r);
-      tMain.textContent = `${PRESETS[st.preset].label} · ${st.preset === "tfv_step" || st.preset === "tov_step" ? "the 40 bar point" : PROFILES[st.profile].replace(" (new each click)", "")}`;
+      if (stand) {
+        stand.setRow(r);
+        const tm = r.t - dtRun();  // the engine in a row reflects the faults present during the step that made it
+        stand.setFaults((run && run.faults || []).map((f) => ({ kind: f.kind, mag: f.mag, sev: M.severity(f, tm), age: tm - f.t0, label: faultLabel(f), short: shortLabel(f) })));
+      }
+      const on = run && run.flag && (run.faults || []).some((f) => M.severity(f, r.t - dtRun()) > 0);
+      flagChip.hidden = !on;
+      if (on) flagChip.replaceChildren(svg(ICON.flag), ` Fault flag: ${run.faults.map(shortLabel).join(", ")}`);
+      const step = st.preset === "tfv_step" || st.preset === "tov_step";
+      tMain.textContent = `${PRESETS[st.preset].label} · ${step ? "the 40 bar point" : st.test ? `test case ${D.scenarios[st.test].test_case}` : PROFILES[st.profile].replace(" (new each click)", "")}`;
       tSub.textContent = `t = ${r.t.toFixed(1)} s · set point ${r.p_ref.toFixed(1)} bar, ROF ${r.rof_ref.toFixed(2)}`;
       sTime.textContent = `t = ${r.t.toFixed(1)} s`;
       drawTelemetry(r);
@@ -428,7 +540,7 @@
       standShow(rowAt(0));
       if (fromStart && sSeq.checked) { stand.setState("off"); stand.ignite(); } else stand.setState("run");
       rp.on = true; rp.last = 0; btnLabel(sPlay, "pause", "Pause");
-      requestAnimationFrame(tick);
+      (window.ReStand ? window.ReStand.nextFrame : requestAnimationFrame)(tick);
     }
     function tick(ts) {
       if (!rp.on) return;
@@ -436,22 +548,22 @@
       rp.last = ts;
       if (stand.state === "run") {
         const i0 = Math.floor(rp.k);
-        rp.k += dt / M.DT * +sSpeed.select.value;
+        rp.k += dt / dtRun() * +sSpeed.select.value;
         const n = run.rows.length - 1;
         if (rp.k >= n) { rp.k = n; stopReplay(); if (sSeq.checked) stand.shutdown(); }
         const i = Math.floor(rp.k);
         events(i0, i);
-        cursor = (i + 1) * M.DT; sSlider.value = i;
+        cursor = (i + 1) * dtRun(); sSlider.value = i;
         standShow(rowAt(i));
         if (ts - rp.drawn > 70 || !rp.on) { rp.drawn = ts; draw(); }
       }
-      if (rp.on) requestAnimationFrame(tick);
+      if (rp.on) (window.ReStand ? window.ReStand.nextFrame : requestAnimationFrame)(tick);
     }
     sSlider.addEventListener("input", () => {
       if (st.preset === "sandbox" || !run) return;
       stopReplay("Continue");
       rp.k = +sSlider.value;
-      cursor = (rp.k + 1) * M.DT;
+      cursor = (rp.k + 1) * dtRun();
       if (stand && stand.state !== "run") stand.setState("run");
       standShow(rowAt(rp.k)); draw();
     });
@@ -463,6 +575,34 @@
     const clampI = (v, a, b) => Math.max(a, Math.min(b, v));
 
     /* ---- events during playback: callouts on the stand and the signal pulse of each control step ---- */
+    // what each malfunction does: a short line for the callout, a sentence for the narration
+    const FAULT_FX = {
+      stuck_tfv: "TFV frozen: only TOV can act now", stuck_tov: "TOV frozen: only TFV can act now",
+      actuator_delay: "valve commands now arrive later", bearing_ftp: "the fuel pump slows: ROF up, p_cc down",
+      bearing_otp: "the LOX pump slows: p_cc and ROF down", leak_fuel: "fuel is lost after the pump",
+      leak_lox: "LOX is lost after the pump", block_ft: "the fuel turbine is starved", block_ot: "the LOX turbine is starved",
+      heat: "more wall heat: the turbines run harder", ageing: "both turbines slowly lose torque",
+      sensor_pcc_bias: "the controller now reads p_cc too high", sensor_pcc_drift: "the p_cc reading drifts away",
+      sensor_pcc_frozen: "the p_cc reading stopped changing", sensor_rof_gain: "the ROF reading is 10 % off",
+    };
+    const FAULT_SAY = {
+      stuck_tfv: "TFV no longer moves. The controller keeps commanding it (the white tick), but only TOV can act, so pressure and mixture ratio cannot both be held.",
+      stuck_tov: "TOV no longer moves. Only TFV can act, so pressure and mixture ratio cannot both be held.",
+      actuator_delay: "every valve command now takes effect later, which eats the loops' phase margin: watch for ringing.",
+      bearing_ftp: "friction slows the fuel pump, so less fuel arrives: the mixture ratio rises and pressure falls until TFV opens further.",
+      bearing_otp: "friction slows the LOX pump, so less oxygen arrives: pressure and mixture ratio fall until TOV opens further.",
+      leak_fuel: "fuel escapes after the pump: less coolant and less fuel at the injector, so the mixture ratio rises.",
+      leak_lox: "oxygen escapes after the pump: less reaches the chamber, so pressure and mixture ratio fall.",
+      block_ft: "less warm methane gets through the fuel turbine, so the fuel pump slows; TFV has to open further.",
+      block_ot: "less warm methane gets through the LOX turbine, so the LOX pump slows; TOV has to open further.",
+      heat: "the wall puts more heat into the coolant; warmer methane drives the turbines harder and the turbine inlet runs hotter.",
+      ageing: "both turbines slowly lose torque, so the valves have to open further and further to hold the set point.",
+      sensor_pcc_bias: "the pressure sensor reads too high. The controller trusts it, so it drives the true pressure low.",
+      sensor_pcc_drift: "the pressure reading drifts upward, and the controller follows the wrong number further and further.",
+      sensor_pcc_frozen: "the pressure reading stopped changing: the controller is flying blind on pressure.",
+      sensor_rof_gain: "the mixture-ratio reading is 10 % too high, so the controller drives the true ratio low.",
+    };
+    const shortLabel = (f) => (D.faults[f.kind] ? D.faults[f.kind].label.replace(" sensor", "").replace("Valve actuators lag", "Valve lag") : f.kind);
     const VNAME = { t_turbine: ["turbine inlet above 700 K", "hot"], p_rc: ["cooling-channel pressure below 46 bar", "jacket"], n_otp: ["OTP over 28k rpm", "otp"], n_ftp: ["FTP over 50k rpm", "ftp"], rof: ["mixture ratio outside 2.5–4.0", "chamber"] };
     function spAt(i) { return run.sandbox ? [run.pref[i + 1], run.rref[i + 1]] : [run.rows[i].p_ref, run.rows[i].rof_ref]; }
     function spChanged(i) { if (i < 1) return false; const [p1, r1] = spAt(i), [p0, r0] = spAt(i - 1); return Math.abs(p1 - p0) > 1e-6 || Math.abs(r1 - r0) > 1e-6; }
@@ -470,7 +610,7 @@
       const n = run.sandbox ? run.n : run.rows.length;
       let j = i;
       while (j + 1 < n && spChanged(j + 1)) j++;
-      return { sp: spAt(j), dur: (j - i + 1) * M.DT };
+      return { sp: spAt(j), dur: (j - i + 1) * dtRun() };
     }
     function events(i0, i1) {
       if (!stand || !run) return;
@@ -482,10 +622,13 @@
         }
         const a = run.rows[i - 1], b = run.rows[i];
         if (a && b) for (const k of Object.keys(b.violations)) if (b.violations[k] && !a.violations[k]) stand.callout("lim-" + k, "Limit: " + VNAME[k][0], "each step over a limit costs 0.5 reward", VNAME[k][1], { color: "#e34948" });
-        if (b && Math.abs(b.t - 2.1) < 1e-6 && (st.preset === "tfv_step" || st.preset === "tov_step")) {
+        if (a && b && a.t < 2 + 1e-9 && b.t > 2 + 1e-9 && (st.preset === "tfv_step" || st.preset === "tov_step")) {
           stand.callout("step", st.preset === "tfv_step" ? "TFV +0.1" : "TOV +0.1", st.preset === "tfv_step" ? "fast overshoot, then the slow thermal sag" : "the LOX side answers in half a second", st.preset === "tfv_step" ? "tfv" : "tov");
         }
       }
+      // a fault starts: the stand jolts, flashes and calls it out
+      const ta = i0 >= 0 && run.rows[i0] ? run.rows[i0].t : 0, tb = run.rows[i1] ? run.rows[i1].t : 0;
+      for (const f of run.faults || []) if (f.t0 + dtRun() > ta + 1e-9 && f.t0 + dtRun() <= tb + 1e-9) stand.faultOnset(f.kind, faultLabel(f), FAULT_FX[f.kind] || "");
       if (i1 > i0) stand.pulse();
     }
 
@@ -493,43 +636,57 @@
     function params() {
       return Object.assign({}, D.params, { q_ref: D.params.q_ref * st.heat, a_tf: D.params.a_tf * st.tf, a_to: D.params.a_to * st.to, valve_delay: st.delay });
     }
-    function episode(pref, rref, preview) {
-      return new M.Episode({ params: params(), trim, pref, rref, preview, sensorDelay: st.sensorDelay, noise: st.noise, seed: 3 });
-    }
-    async function simulate() {
-      const k = st.preset, P = PRESETS[k];
-      let prof = profile(M, st.profile, st.seed);
-      if (k === "tfv_step" || k === "tov_step") {
-        const n = Math.round(30 / M.DT) + 5;
-        prof = { pref: new Array(n).fill(40), rref: new Array(n).fill(3.4) };
-      }
+    // One episode: controller k on test case tc, or on the free settings (set points, engine sliders,
+    // your faults) when tc is null. "pi" uses the gains chosen in the panel, "pi-bw" the bandwidth design.
+    async function runController(k, tc, piMode) {
+      const P = PRESETS[k] || {};
       let spec = null;
       if (P.policy) {
         spec = await V.loadPolicy(k);
         if (!spec) return { rows: [], missing: true };
       }
-      const ep = episode(prof.pref, prof.rref, spec ? spec.env.preview : false);
-      const pi = new M.DecoupledPI({ kp_p: D.pi_gains.kp_p * st.gain, ki_p: D.pi_gains.ki_p * st.gain, kp_r: D.pi_gains.kp_r * st.gain, ki_r: D.pi_gains.ki_r * st.gain }, trim);
+      const dt = spec ? (spec.env.dt || M.DT_LEGACY) : M.DT;
+      const step = k === "tfv_step" || k === "tov_step";
+      let setup;
+      if (tc && !step) {
+        const sc = D.scenarios[tc];
+        setup = Object.assign(M.scenarioOptions(sc, D.params, dt, 4), { flag: !!sc.flag, sensorDelay: true });
+      } else {
+        let prof = profile(M, st.profile, st.seed, dt);
+        if (step) {
+          const n = Math.round(30 / dt) + 5;
+          prof = { pref: new Array(n).fill(40), rref: new Array(n).fill(3.4) };
+        }
+        setup = { params: params(), pref: prof.pref, rref: prof.rref, faults: st.faults.slice(), flag: false, sensorDelay: st.sensorDelay };
+      }
+      const ep = new M.Episode({ params: setup.params, trim, pref: setup.pref, rref: setup.rref, preview: spec ? spec.env.preview : false, dt,
+        faults: setup.faults, delay: setup.delay, sensorDelay: setup.sensorDelay, noise: st.noise, seed: 3 });
+      const pi = new M.DecoupledPI(piGainsFor(k === "pi-bw" ? "bw" : piMode || st.piMode), trim, dt);
       const rows = [];
       while (!ep.done) {
-        const t = ep.k * M.DT;
+        const t = ep.k * dt;
         let u;
-        if (k === "pi") u = pi.step(ep.meas[0], ep.meas[1], ...ep.setpoint);
+        if (k === "pi" || k === "pi-bw") u = pi.step(ep.meas[0], ep.meas[1], ...ep.setpoint);
         else if (k === "feedforward") u = trim.valves(...ep.setpoint);
         else if (k === "tfv_step") u = [D.params.x_tfv_ref + (t >= 2 ? 0.1 : 0), D.params.x_tov_ref];
         else if (k === "tov_step") u = [D.params.x_tfv_ref, D.params.x_tov_ref + (t >= 2 ? 0.1 : 0)];
         else u = M.toValves(M.mlp(spec, ep.obs()));
         rows.push(ep.step(u));
       }
-      return { rows };
+      return { rows, dt, faults: setup.faults, flag: setup.flag };
     }
+    function simulate() { return runController(st.preset, st.test); }
     function startSandbox() {
-      const prof = profile(M, st.profile, st.seed);
-      sand.ep = episode(prof.pref, prof.rref, false);
-      sand.u = trim.valves(prof.pref[0], prof.rref[0]);
+      const tc = st.test, dt = M.DT;
+      let setup;
+      if (tc) setup = M.scenarioOptions(D.scenarios[tc], D.params, dt, 4);
+      else { const prof = profile(M, st.profile, st.seed, dt); setup = { params: params(), pref: prof.pref, rref: prof.rref, faults: st.faults.slice() }; }
+      sand.ep = new M.Episode({ params: setup.params, trim, pref: setup.pref, rref: setup.rref, preview: false, dt, faults: setup.faults, delay: setup.delay,
+        sensorDelay: tc ? true : st.sensorDelay, noise: st.noise, seed: 3 });
+      sand.u = trim.valves(setup.pref[0], setup.rref[0]);
       sTfv.set(sand.u[0]); sTov.set(sand.u[1]);
       sand.rows = [];
-      run = { rows: sand.rows, sandbox: true, n: sand.ep.nSteps, pref: prof.pref, rref: prof.rref };
+      run = { rows: sand.rows, sandbox: true, n: sand.ep.nSteps, pref: setup.pref, rref: setup.rref, dt, faults: setup.faults, flag: tc ? !!D.scenarios[tc].flag : false };
     }
     const play = el("button", { class: "re-btn re-primary", type: "button", onclick: () => togglePlay() });
     btnLabel(play, "play", "Play");
@@ -545,7 +702,7 @@
         acc += (now - last) / 1000 * +speedSel.select.value; last = now;
         let moved = false;
         const i0 = sand.rows.length - 1;
-        while (acc >= M.DT && !sand.ep.done) { acc -= M.DT; sand.rows.push(sand.ep.step(sand.u.slice())); moved = true; }
+        while (acc >= sand.ep.dt && !sand.ep.done) { acc -= sand.ep.dt; sand.rows.push(sand.ep.step(sand.u.slice())); moved = true; }
         if (moved) { events(i0, sand.rows.length - 1); cursor = null; draw(); standShow(sand.rows[sand.rows.length - 1]); }
         if (sand.ep.done) { stopPlay(); if (stand && sSeq.checked) stand.shutdown(); }
       }, 50);
@@ -561,26 +718,28 @@
       if (!rows.length) return null;
       let ep = 0, er = 0, ret = 0, viol = 0, travel = 0;
       for (const r of rows) { ep += Math.abs(r.p_cc - r.p_ref) / r.p_ref; er += Math.abs(r.rof - r.rof_ref) / r.rof_ref; ret += r.reward; viol += r.n_viol; travel += r.du; }
-      return { mape_p: 100 * ep / rows.length, mape_r: 100 * er / rows.length, ret, viol, travel };
+      const dt = rows.length > 1 ? rows[1].t - rows[0].t : M.DT;
+      return { mape_p: 100 * ep / rows.length, mape_r: 100 * er / rows.length, ret, viol, viol_s: viol * dt, travel };
     }
     function curIndex() {
       if (!run || !run.rows.length) return -1;
-      if (cursor != null) return Math.min(run.rows.length - 1, Math.max(0, Math.round(cursor / M.DT) - 1));
+      if (cursor != null) return Math.min(run.rows.length - 1, Math.max(0, Math.round(cursor / dtRun()) - 1));
       return run.sandbox ? run.rows.length - 1 : Math.floor(rp.k);
     }
     function series(rows, key) { return rows.map((r) => r[key]); }
     function draw() {
       if (!run) return;
       const rows = run.rows, n = run.sandbox ? run.n : rows.length;
-      const t = rows.map((r) => r.t), xlim = [0, n * M.DT];
-      const tref = run.sandbox ? run.pref.slice(1, n + 1).map((_, i) => (i + 1) * M.DT) : t;
+      const t = rows.map((r) => r.t), xlim = [0, n * dtRun()];
+      const tref = run.sandbox ? run.pref.slice(1, n + 1).map((_, i) => (i + 1) * dtRun()) : t;
       const pref = run.sandbox ? run.pref.slice(1, n + 1) : series(rows, "p_ref");
       const rref = run.sandbox ? run.rref.slice(1, n + 1) : series(rows, "rof_ref");
       const muted = V.css("--viz-muted");
       const pinLines = (key) => pins.map((p) => ({ x: p.rows.map((r) => r.t), y: series(p.rows, key), color: muted, width: 1.4, alpha: 0.8 }));
       const showCursor = cursor != null || rp.on || rp.k > 0;
-      const cur = showCursor ? (cursor != null ? cursor : (Math.floor(rp.k) + 1) * M.DT) : null;
-      const base = { xlim, cursor: cur };
+      const cur = showCursor ? (cursor != null ? cursor : (Math.floor(rp.k) + 1) * dtRun()) : null;
+      // fault onsets as red lines in every plot
+      const base = { xlim, cursor: cur, vlines: (run.faults || []).map((f) => ({ x: f.t0, color: "#e0245e", dash: [4, 3], label: shortLabel(f) })) };
       plot(cP, Object.assign({}, base, { x: t, lines: [...pinLines("p_cc"), { x: tref, y: pref, color: ink2(), dash: [5, 4], width: 1.5 }, { y: series(rows, "p_cc"), color: V.series(1) }], ylabel: "bar" }));
       plot(cR, Object.assign({}, base, { x: t, lines: [...pinLines("rof"), { x: tref, y: rref, color: ink2(), dash: [5, 4], width: 1.5 }, { y: series(rows, "rof"), color: V.series(2) }], ylabel: "ROF", hlines: [{ y: L.rof_max, color: V.css("--viz-s8"), label: "limit " + L.rof_max.toFixed(1) }] }));
       plot(cU, Object.assign({}, base, { x: t, lines: [{ y: series(rows, "u_tfv"), color: V.series(1), dash: [4, 3], width: 1.2, step: true }, { y: series(rows, "u_tov"), color: V.series(2), dash: [4, 3], width: 1.2, step: true },
@@ -629,6 +788,9 @@
         x.row.classList.toggle("bad", bad); x.row.classList.toggle("warn", warn);
         x.val.textContent = fmt(v);
       }
+      const fl = (run && run.faults || []).map((f) => [f, M.severity(f, r.t - dtRun())]).filter(([, sv]) => sv > 0);
+      telFaults.replaceChildren(...fl.map(([f, sv]) => el("div", { class: "tel-fault" }, svg(ICON.warn), el("span", {}, faultLabel(f)),
+        el("span", { class: "tel-bar" }, el("i", { class: "tel-fill", style: `width:${(100 * sv).toFixed(0)}%` })), el("b", {}, `${(100 * sv).toFixed(0)} %`))));
       readsLine.replaceChildren(el("span", {}, "controller reads "), el("b", {}, `${(r.p_meas ?? r.p_cc).toFixed(1)} bar, ${(r.rof_meas ?? r.rof).toFixed(2)}`),
         el("span", {}, st.sensorDelay ? " (late)" : " (no delay)"));
     }
@@ -686,13 +848,23 @@
     function narrate(r) {
       const P = PRESETS[st.preset], i = run.rows.indexOf(r) >= 0 ? run.rows.indexOf(r) : curIndex();
       const rows = run.rows;
-      const who = { open: "the schedule", fb: "the PI", rl: P.ctl, you: "you" }[P.group];
-      const v = r.violations ? Object.entries(r.violations).filter(([, b]) => b).map(([k]) => k) : [];
-      if (v.length) return ["bad", `Over a limit: ${v.map((k) => VNAME[k][0]).join("; ")}. Each step over a limit costs 0.5 reward.`];
-      const back = (k) => rows[Math.max(0, i - k)] || r;
-      const dir = (key, k) => { const d = r[key] - back(k)[key]; return Math.abs(d) < 0.002 ? 0 : Math.sign(d); };
+      const who = { open: "the schedule", fb: "the PI", rl: P.ctl, old: P.ctl, you: "you" }[P.group];
+      const steps = (sec) => Math.max(1, Math.round(sec / dtRun()));
+      const back = (sec) => rows[Math.max(0, i - steps(sec))] || r;
+      const dir = (key, sec) => { const d = r[key] - back(sec)[key]; return Math.abs(d) < 0.002 ? 0 : Math.sign(d); };
       const vw = (name, s) => (s > 0 ? `${name} opening ▲` : s < 0 ? `${name} closing ▼` : null);
-      const moves = [vw("TFV", dir("u_tfv", 3)), vw("TOV", dir("u_tov", 3))].filter(Boolean).join(", ");
+      const moves = [vw("TFV", dir("u_tfv", 0.3)), vw("TOV", dir("u_tov", 0.3))].filter(Boolean).join(", ");
+      // malfunctions: what just broke and what it does, for six seconds after the onset
+      const active = (run.faults || []).filter((f) => M.severity(f, r.t - dtRun()) > 0);
+      const fresh = active.filter((f) => r.t - f.t0 < 6);
+      const reply0 = P.group === "open" ? "Nobody corrects it (open loop)." : moves ? `${P.group === "you" ? "You" : who[0].toUpperCase() + who.slice(1)}: ${moves}.` : "";
+      if (fresh.length) {
+        const f = fresh[fresh.length - 1];
+        return ["bad", `Fault at ${f.t0} s, ${faultLabel(f).toLowerCase()}: ${FAULT_SAY[f.kind] || ""} ${reply0}${run.flag ? " The controller has been told (detection signal)." : ""}`];
+      }
+      const pre = active.length ? `[${active.map(shortLabel).join(", ")}] ` : "";
+      const v = r.violations ? Object.entries(r.violations).filter(([, b]) => b).map(([k]) => k) : [];
+      if (v.length) return ["bad", `${pre}Over a limit: ${v.map((k) => VNAME[k][0]).join("; ")}. Each step over a limit costs 0.5 reward.`];
       if (st.preset === "tfv_step" || st.preset === "tov_step") {
         const tfv = st.preset === "tfv_step";
         if (r.t < 2.05) return ["idle", `Holding the 40 bar point. At t = 2 s ${tfv ? "TFV" : "TOV"} steps by +0.1, with nobody correcting.`];
@@ -701,19 +873,111 @@
         return ["event", r.t < 3.5 ? "TOV jumped: the LOX pump answers within half a second; pressure and mixture ratio rise, the fuel side barely moves." : `Settled within a second: p_cc +${(r.p_cc - 40).toFixed(1)} bar, ROF ${r.rof.toFixed(2)}. The oxidiser channel is the fast one.`];
       }
       // a set-point change in the last 2.5 s
-      for (let j = i; j > Math.max(0, i - 25); j--) if (spChanged(j) && !spChanged(j - 1)) {
+      for (let j = i; j > Math.max(0, i - steps(2.5)); j--) if (spChanged(j) && !spChanged(j - 1)) {
         const { sp } = spTarget(j);
         const answer = P.group === "open" ? "The schedule moves the valves to the trim openings" : P.group === "you" ? "Your move" : `${who[0].toUpperCase() + who.slice(1)} is answering`;
-        return ["event", `New set point ${sp[0].toFixed(1)} bar, ROF ${sp[1].toFixed(2)} (${((i - j) * M.DT).toFixed(1)} s ago). ${answer}${moves ? ": " + moves : ""}.`];
+        return ["event", `${pre}New set point ${sp[0].toFixed(1)} bar, ROF ${sp[1].toFixed(2)} (${((i - j) * dtRun()).toFixed(1)} s ago). ${answer}${moves ? ": " + moves : ""}.`];
       }
       const ep = r.p_cc - r.p_ref, er = r.rof - r.rof_ref, epp = Math.abs(ep) / r.p_ref, erp = Math.abs(er) / r.rof_ref;
       if (epp > 0.02 || erp > 0.02) {
         const bits = [epp > 0.02 ? `p_cc ${Math.abs(ep).toFixed(1)} bar ${ep < 0 ? "low" : "high"}` : null, erp > 0.02 ? `ROF ${Math.abs(er).toFixed(2)} ${er < 0 ? "low" : "high"}` : null].filter(Boolean).join(", ");
         const reply = P.group === "open" ? "nobody corrects it (open loop)" : moves ? `${P.group === "you" ? "you" : who}: ${moves}` : P.group === "you" ? "your valves are not moving" : `${who} is holding the valves`;
-        return ["warn", `Off target: ${bits}. ${reply[0].toUpperCase() + reply.slice(1)}.`];
+        return ["warn", `${pre}Off target: ${bits}. ${reply[0].toUpperCase() + reply.slice(1)}.`];
       }
-      const drift = Math.abs(r.t_rc - back(20).t_rc) > 4 ? ` The coolant is still ${r.t_rc > back(20).t_rc ? "warming" : "cooling"} (${Math.round(r.t_rc)} K), so the pressure will drift unless ${P.group === "open" ? "someone corrects it" : P.group === "you" ? "you keep correcting" : who + " keeps correcting"}.` : "";
-      return ["ok", `On target: p_cc within ${(100 * epp).toFixed(1)} % and ROF within ${(100 * erp).toFixed(1)} % of the set point.${drift}`];
+      const drift = Math.abs(r.t_rc - back(2).t_rc) > 4 ? ` The coolant is still ${r.t_rc > back(2).t_rc ? "warming" : "cooling"} (${Math.round(r.t_rc)} K), so the pressure will drift unless ${P.group === "open" ? "someone corrects it" : P.group === "you" ? "you keep correcting" : who + " keeps correcting"}.` : "";
+      return [pre ? "warn" : "ok", `${pre}On target: p_cc within ${(100 * epp).toFixed(1)} % and ROF within ${(100 * erp).toFixed(1)} % of the set point.${drift}`];
+    }
+
+    /* ---- fault onsets on the time slider ---- */
+    function drawMarks() {
+      const T = run ? (run.sandbox ? run.n : run.rows.length) * dtRun() : 40;
+      sMarks.replaceChildren(...(run && run.faults || []).map((f) => el("i", { style: `left:${(100 * Math.min(1, f.t0 / T)).toFixed(2)}%`, title: `${faultLabel(f)} at ${f.t0} s` })));
+    }
+
+    /* ================================================================ every controller through every test case
+       Each cell is one episode, run live in this browser with the same code as the Python environment:
+       about 0.1-0.2 s per 40 s episode, so the 63 episodes take seconds and nothing has to be downloaded. */
+    const TEST_CTLS = [["feedforward", "Feedforward", "open"], ["pi", "PI, tuned", "fb"], ["pi-bw", "PI, bandwidth", "fb"], ["ppo", "PPO", "rl"], ["sac", "SAC", "rl"],
+      ["ppo-preview", "PPO + preview", "old"], ["ppo-nopreview", "PPO", "old"], ["sac-preview", "SAC + preview", "old"], ["sac-nopreview", "SAC", "old"]];
+    const RATE = { open: "20 Hz", fb: "20 Hz", rl: "20 Hz", old: "10 Hz" };
+    const testsBox = el("section", { class: "hud-modal", role: "dialog", "aria-label": "Every controller, every test case" });
+    testsBox.hidden = true;
+    const tTable = el("div", { class: "tests-table" });
+    const tBar = el("i", {});
+    const tProg = el("div", { class: "tests-prog" }, tBar);
+    const tStatus = el("span", { class: "tests-status" });
+    const tRun = el("button", { class: "re-btn re-primary", type: "button", onclick: () => (testsRunning ? (testsAbort = true) : runTests()) });
+    btnLabel(tRun, "play", "Run all 63");
+    testsBox.append(el("div", { class: "hud-chead" }, el("span", {}, svg(ICON.flag), " Every controller, every test case"),
+      el("button", { class: "hud-x", type: "button", "aria-label": "Close", onclick: () => toggleTests(false) }, svg(ICON.close))),
+      el("div", { class: "hud-cbody" }, el("div", { class: "lab-row" }, tRun, tStatus), tProg, tTable,
+        el("p", { class: "hud-more" }, "Each cell is one episode, run live in your browser: mean chamber-pressure error (large), mixture-ratio error and seconds over a limit. Click a cell to watch it on the stand. ",
+          "Sensor noise follows the Engine panel; the PI bandwidth row uses your bandwidths. Surrogate engine, not DLR's simulator; the Python results are in ", el("a", { href: "../../04a-surrogate-baselines/" }, "Baselines on the surrogate"), ".")));
+    viewer.append(testsBox);
+    const results = {};
+    let testsRunning = false, testsAbort = false, testsSig = "";
+    const testSig = () => `${st.noise}|${st.pbw}|${st.rbw}`;
+    function toggleTests(on) {
+      const show = on === undefined ? testsBox.hidden : on;
+      testsBox.hidden = !show;
+      toolBtns.tests.setAttribute("aria-pressed", String(show));
+      if (show) { drawTests(); if (mode === "stack") testsBox.scrollIntoView({ block: "nearest", behavior: "smooth" }); }
+    }
+    function heat(mape) { return mape < 1 ? "h1" : mape < 2 ? "h2" : mape < 4 ? "h3" : mape < 8 ? "h4" : "h5"; }
+    function drawTests() {
+      const tcs = Object.keys(D.scenarios), stale = testsSig && testsSig !== testSig();
+      const head = el("tr", {}, el("th", {}, "Controller"), ...tcs.map((tc) => el("th", { title: D.scenarios[tc].label }, el("b", {}, String(D.scenarios[tc].test_case)), el("small", {}, D.scenarios[tc].label))), el("th", {}, el("b", {}, "Mean"), el("small", {}, "MAPE p_cc")));
+      const best = {};
+      for (const tc of tcs) { let b = Infinity; for (const [c] of TEST_CTLS) { const m = results[c + "|" + tc]; if (m && m.mape_p < b) { b = m.mape_p; best[tc] = c; } } }
+      const body = TEST_CTLS.map(([c, name, grp]) => {
+        const ms = tcs.map((tc) => results[c + "|" + tc]);
+        const done = ms.filter(Boolean);
+        const mean = done.length === tcs.length ? done.reduce((a, m) => a + m.mape_p, 0) / done.length : null;
+        return el("tr", { class: "g-" + grp }, el("th", {}, el("span", { class: "dot" }), name, el("small", {}, RATE[grp])),
+          ...tcs.map((tc, j) => {
+            const m = ms[j];
+            if (!m) return el("td", { class: "empty" }, "·");
+            return el("td", { class: heat(m.mape_p) + (best[tc] === c ? " best" : ""), title: `${name} on test case ${D.scenarios[tc].test_case}: click to watch`, onclick: () => openTest(c, tc) },
+              el("b", {}, m.mape_p.toFixed(2)), el("small", {}, `ROF ${m.mape_r.toFixed(2)}`), m.viol_s > 0.05 ? el("small", { class: "over" }, `${m.viol_s.toFixed(1)} s over`) : null);
+          }),
+          el("td", { class: mean == null ? "empty" : heat(mean) }, mean == null ? "·" : el("b", {}, mean.toFixed(2))));
+      });
+      tTable.replaceChildren(el("table", {}, el("thead", {}, head), el("tbody", {}, ...body)));
+      tTable.classList.toggle("stale", !!stale);
+      if (!testsRunning) tStatus.textContent = Object.keys(results).length ? (stale ? "Settings changed since this run: run again." : "Done. The best controller per test case is outlined.") : "63 episodes, a few seconds.";
+    }
+    async function runTests() {
+      testsRunning = true; testsAbort = false;
+      btnLabel(tRun, "pause", "Stop");
+      for (const k of Object.keys(results)) delete results[k];
+      const tcs = Object.keys(D.scenarios), total = TEST_CTLS.length * tcs.length;
+      let n = 0;
+      const t0 = performance.now();
+      outer: for (const [c] of TEST_CTLS) {
+        for (const tc of tcs) {
+          if (testsAbort) break outer;
+          const r = await runController(c, tc, c === "pi" ? "tuned" : undefined);
+          if (r.rows.length) results[c + "|" + tc] = metrics(r.rows);
+          n++;
+          tBar.style.width = `${(100 * n / total).toFixed(1)}%`;
+          tStatus.textContent = `${n} of ${total} episodes, ${((performance.now() - t0) / 1000).toFixed(1)} s`;
+          drawTests();
+          await new Promise((res) => setTimeout(res, 0));  // keep the page responsive
+        }
+      }
+      testsRunning = false; testsSig = testSig();
+      btnLabel(tRun, "play", "Run all 63");
+      tStatus.textContent = testsAbort ? "Stopped." : `All ${total} episodes in ${((performance.now() - t0) / 1000).toFixed(1)} s. The best controller per test case is outlined.`;
+      drawTests();
+    }
+    function openTest(c, tc) {
+      st.preset = c === "pi-bw" ? "pi" : c;
+      if (c === "pi") st.piMode = "tuned";
+      if (c === "pi-bw") st.piMode = "bw";
+      piMode.select.value = st.piMode;
+      st.test = tc;
+      toggleTests(false);
+      update().then(() => { if (run && run.rows.length) toggleReplay(); });
     }
 
     /* ================================================================ preset changes */
@@ -722,46 +986,73 @@
       presets.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.k === st.preset));
       const k = st.preset, P = PRESETS[k];
       cStory.body.innerHTML = `<p>${P.story}</p>` + (P.policy ? "<p class=\"hud-more\">An exported network, evaluated deterministically in your browser on the same observation vector as in training (92 numbers with preview, 60 without).</p>" : "") + "<p class=\"hud-more\"><a href=\"#guided-experiments\">Guided experiments</a> · <a href=\"#model-card\">model card</a></p>";
+      if (st.test) cStory.body.insertAdjacentHTML("beforeend", `<p><b>Test case ${D.scenarios[st.test].test_case}: ${D.scenarios[st.test].label}.</b> ${D.scenarios[st.test].note}</p>`);
       if (openCard !== "story") toolBtns.story.classList.add("news");
       ctlSlot.replaceChildren();
-      if (k === "pi") ctlSlot.append(ctlGain, el("div", { class: "re-note" }, `Tuned gains: k_p ${D.pi_gains.kp_p} and k_i ${D.pi_gains.ki_p} /s on pressure, k_p ${D.pi_gains.kp_r} and k_i ${D.pi_gains.ki_r} /s on mixture ratio.`));
+      if (k === "pi") {
+        const bw = st.piMode === "bw";
+        bwP.input.disabled = bwR.input.disabled = piDefault.disabled = !bw;
+        ctlSlot.append(piMode, bwP, bwR, el("div", { class: "lab-row" }, piDefault), piBox, bode,
+          el("div", { class: "re-note" }, bw ? "Gains from each loop's first-order-plus-dead-time model and the bandwidth you ask for (SIMC rules). The plot shows each loop's gain; the dot is the crossover. The default is the pair that scored best on the training episodes; the model's own optimum, about 0.7 Hz for pressure, is too fast for the real coupling and heat." : "Gains tuned by Nelder–Mead on 12 training episodes. Switch to bandwidth to design them yourself; the margins below are those of the tuned gains."));
+      }
       else if (k === "sandbox") ctlSlot.append(sTfv, sTov, el("div", { class: "lab-row" }, speedSel, play, sandReset), el("div", { class: "re-note" }, "Or drag the valves on the stand, or use the arrow keys."));
       else if (P.policy) ctlSlot.append(el("div", { class: "re-note" }, "A trained network: nothing to tune. Perturb the engine below and see how it copes."));
       else ctlSlot.append(el("div", { class: "re-note" }, "No feedback: the valve commands are fixed in advance."));
-      profileSel.select.disabled = k === "tfv_step" || k === "tov_step";
+      const step = k === "tfv_step" || k === "tov_step";
+      profileSel.select.disabled = step || !!st.test;
+      newRandom.disabled = !!st.test;
       pCtl.sum.textContent = P.chip;
+      // test cases and faults
+      testSel.select.value = st.test || "";
+      testNote.textContent = st.test ? D.scenarios[st.test].note : "Free: your set points, your engine settings and the faults you add.";
+      freeBox.hidden = !!st.test;
+      drawFaultList();
+      pFault.sum.textContent = st.test ? `test case ${D.scenarios[st.test].test_case}` : st.faults.length ? `${st.faults.length} fault${st.faults.length > 1 ? "s" : ""}` : "none";
+      pFault.root.classList.toggle("perturbed", !!(st.test || st.faults.length));
+      for (const c of [ctlHeat, ctlTf, ctlTo, ctlDelay]) c.input.disabled = !!st.test;
+      chkSensor.disabled = !!st.test;
+      engNote.textContent = st.test ? "Set by the test case; choose “free” to change the engine yourself." : "";
+      if (k === "pi") piInfo();
       const nominal = st.heat === 1 && st.tf === 1 && st.to === 1 && Math.abs(st.delay - D.params.valve_delay) < 1e-9 && st.sensorDelay && st.noise;
       pEng.sum.textContent = nominal ? "calibrated" : "perturbed";
       pEng.root.classList.toggle("perturbed", !nominal);
       stopReplay(); rp.k = 0; cursor = null; sSlider.disabled = k === "sandbox";
       if (stand) {
-        stand.setRunLabel({ open: "open loop", fb: "closed loop, PI", rl: "closed loop, " + P.ctl, you: "you drive" }[P.group]);
+        stand.setRunLabel({ open: "open loop", fb: "closed loop, PI", rl: "closed loop, " + P.ctl, old: "closed loop, " + P.ctl + " (10 Hz)", you: "you drive" }[P.group]);
         stand.setController({ label: P.ctl, kind: P.group, color: groupColor(P.group) });
         stand.setPerturb({ heat: st.heat, tf: st.tf, to: st.to, delay: st.delay, delay0: D.params.valve_delay, sensorDelay: st.sensorDelay, noise: st.noise });
         stand.setValveDrag(k === "sandbox" ? (key, v) => { const i = key === "tfv" ? 0 : 1; sand.u[i] = v; (i ? sTov : sTfv).set(v); sandboxShow(); } : null);
         stand.clearCallouts();
       }
-      if (k === "sandbox") { startSandbox(); draw(); btnLabel(sPlay, "play", "Play"); if (stand) { stand.setState("run"); standShow(epRow(sand.ep)); } return; }
+      if (k === "sandbox") { startSandbox(); drawMarks(); draw(); btnLabel(sPlay, "play", "Play"); if (stand) { stand.setState("run"); standShow(epRow(sand.ep)); } return; }
       btnLabel(sPlay, "play", "Hot fire");
       const res = await simulate();
       if (res.missing) { cStory.body.insertAdjacentHTML("beforeend", "<p><i>This policy has not been exported yet.</i></p>"); run = null; return; }
       run = res;
       sSlider.max = run.rows.length - 1; sSlider.value = 0;
+      drawMarks();
       if (stand) stand.setState("run");
       standShow(rowAt(0));
       draw();
+      if (q.get("t") && !rp.jumped) {  // a link can open a given moment, e.g. ?test=tc6&t=17
+        rp.jumped = true;
+        sSlider.value = Math.max(0, Math.min(run.rows.length - 1, Math.round(+q.get("t") / dtRun()) - 1));
+        sSlider.dispatchEvent(new Event("input"));
+      }
       if (q.get("play") === "1" && !rp.played) { rp.played = true; toggleReplay(); }
+      if (q.get("tests") === "1" && !rp.tested) { rp.tested = true; toggleTests(true); runTests(); }  // ?tests=1 runs the scoreboard
     }
 
     /* ---- keys: on the viewer (and anywhere while it is full screen) ---- */
     function onKey(e) {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       const k = e.key, onControl = e.target.closest && e.target.closest("button, input, select, textarea, a");
-      if (k === "Escape") { if (openCard) showCard(null); else if (isFull()) toggleFull(false); return; }
+      if (k === "Escape") { if (!testsBox.hidden) toggleTests(false); else if (openCard) showCard(null); else if (isFull()) toggleFull(false); return; }
       if (onControl && (k === " " || k.startsWith("Arrow"))) return;
       if (k === " ") { e.preventDefault(); toggleReplay(); }
       else if (k === "f" || k === "F") { e.preventDefault(); toggleFull(); }
       else if (k === "?") showCard("about");
+      else if (k === "t" || k === "T") toggleTests();
       else if (k === "l" || k === "L") { layers.parts = !(layers.parts == null ? mode === "hud" : layers.parts); store.set("layers", layers); applyLayers(); }
       else if (k === "+" || k === "=") stand && stand.zoomBy(1.3);
       else if (k === "-" || k === "_") stand && stand.zoomBy(1 / 1.3);

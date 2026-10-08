@@ -9,7 +9,7 @@
   "use strict";
   const X_TFV = 0, V_TFV = 1, X_TOV = 2, V_TOV = 3, W_O = 4, W_F = 5, M_O = 6, M_F = 7, T_W = 8, T_LNG = 9;
   const RPM = 60 / (2 * Math.PI);
-  const DT = 0.1, SUB = 0.05;
+  const DT = 0.05, DT_LEGACY = 0.1, SUB = 0.05;  // 20 Hz, the challenge's rate; 10 Hz for the first baselines
   const U_LOW = [0.1, 0.1], U_HIGH = [0.7, 0.5];
   const LIMITS = { rof_min: 2.5, rof_max: 4.0, t_turbine_max: 700, n_otp_max: 28000, n_ftp_max: 50000, p_rc_min: 46 };
   const clip = (x, lo, hi) => Math.min(Math.max(x, lo), hi);
@@ -27,24 +27,25 @@
 
   function algebraic(s, p) {
     const mO = s[M_O], mF = s[M_F], tW = Math.max(s[T_W], 150);
+    const mOc = mO * (1 - (p.leak_o || 0)), mFe = mF * (1 - (p.leak_f || 0));  // what reaches injector and channels
     const rootT = Math.sqrt(tW);
     const aTfv = valveArea(s[X_TFV], p), aTov = valveArea(s[X_TOV], p);
     const sF = p.k_tfv * aTfv / rootT, sO = p.k_tov * aTov / rootT, sB = p.k_bpv / rootT;
     const sTot = sF + sO + sB;
     let kc = p.kc, mInj = 0;
     for (let it = 0; it < 2; it++) {
-      const qa = sTot * p.r_inj, qb = 1 + sTot * kc, qc = mF - sTot * kc * mO;
+      const qa = sTot * p.r_inj, qb = 1 + sTot * kc, qc = mFe - sTot * kc * mOc;
       if (qa > 1e-12) {
         const disc = Math.max(qb * qb + 4 * qa * qc, 0);
         mInj = (-qb + Math.sqrt(disc)) / (2 * qa);
       } else mInj = qc / qb;
       mInj = Math.max(mInj, 1e-6);
-      kc = p.kc * cstarFactor(mO / mInj, p);
+      kc = p.kc * cstarFactor(mOc / mInj, p);
     }
-    const pCc = kc * (mO + mInj);
+    const pCc = kc * (mOc + mInj);
     const pRc = pCc + p.r_inj * mInj * mInj;
     const mTf = sF * pRc, mTo = sO * pRc, mBpv = sB * pRc;
-    const mRc = mF - p.m_byp;
+    const mRc = mFe - p.m_byp;
     const jet = rootT * Math.sqrt(Math.max(1 - Math.pow(p.p_vent / Math.max(pRc, p.p_vent + 1e-3), p.isen_exp), 0));
     const tqTf = mTf * (p.a_tf * jet - p.b_tf * s[W_F]);
     const tqTo = mTo * (p.a_to * jet - p.b_to * s[W_O]);
@@ -52,7 +53,7 @@
     const tqPo = mO * dpO * 1e5 / (p.rho_lox * p.eta_po * Math.max(s[W_O], 1));
     const tqPf = mF * dpF * 1e5 / (p.rho_lng * p.eta_pf * Math.max(s[W_F], 1));
     const qWall = p.q_ref * Math.pow(Math.max(pCc, 1) / p.p_ref, p.q_exp) * (1 + p.k_tlng * (s[T_LNG] - p.t_lng_ref) / 100);
-    return { m_inj: mInj, p_cc: pCc, p_rc: pRc, m_tf: mTf, m_to: mTo, m_bpv: mBpv, m_rc: mRc,
+    return { m_inj: mInj, m_oc: mOc, m_fe: mFe, p_cc: pCc, p_rc: pRc, m_tf: mTf, m_to: mTo, m_bpv: mBpv, m_rc: mRc,
       tq_tf: tqTf, tq_to: tqTo, tq_po: tqPo, tq_pf: tqPf, dp_o: dpO, dp_f: dpF, q_wall: qWall };
   }
 
@@ -66,8 +67,10 @@
       d[xi] = s[vi];
       d[vi] = clip((vDes - s[vi]) / p.valve_tau, -p.valve_amax, p.valve_amax);
     }
-    d[W_O] = (a.tq_to - a.tq_po) / p.inertia_o;
-    d[W_F] = (a.tq_tf - a.tq_pf) / p.inertia_f;
+    if (p.stuck_tfv) { d[X_TFV] = 0; d[V_TFV] = 0; }
+    if (p.stuck_tov) { d[X_TOV] = 0; d[V_TOV] = 0; }
+    d[W_O] = (a.tq_to - a.tq_po * (1 + (p.drag_o || 0))) / p.inertia_o;  // a worn bearing adds friction
+    d[W_F] = (a.tq_tf - a.tq_pf * (1 + (p.drag_f || 0))) / p.inertia_f;
     d[M_O] = (p.p_tank_o + a.dp_o - (a.p_cc + p.r_o * s[M_O] * Math.abs(s[M_O]))) / p.l_o;
     const pFReq = a.p_rc + p.r_rc * a.m_rc * Math.abs(a.m_rc);
     d[M_F] = (p.p_tank_f + a.dp_f - pFReq) / p.l_f;
@@ -79,7 +82,8 @@
 
   function outputs(s, p, a) {
     a = a || algebraic(s, p);
-    return { p_cc: a.p_cc, rof: s[M_O] / a.m_inj, m_lox: s[M_O], m_lng: s[M_F], m_inj: a.m_inj, m_rc: a.m_rc,
+    return { p_cc: a.p_cc, rof: a.m_oc / a.m_inj, m_lox: s[M_O], m_lng: s[M_F], m_inj: a.m_inj, m_rc: a.m_rc,
+      m_leak_o: s[M_O] - a.m_oc, m_leak_f: s[M_F] - a.m_fe,
       t_rc: s[T_W], t_lng: s[T_LNG], n_otp: s[W_O] * RPM, n_ftp: s[W_F] * RPM, p_rc: a.p_rc,
       m_tf: a.m_tf, m_to: a.m_to, m_bpv: a.m_bpv, q_wall: a.q_wall, x_tfv: s[X_TFV], x_tov: s[X_TOV] };
   }
@@ -153,6 +157,8 @@
           const q = this.queue.shift();
           this.u = [q[1], q[2]];
         }
+        if (p.stuck_tfv) s[V_TFV] = 0;
+        if (p.stuck_tov) s[V_TOV] = 0;
         const d = derivatives(s, this.u[0], this.u[1], p)[0];
         s[V_TFV] += dt * d[V_TFV];
         s[V_TOV] += dt * d[V_TOV];
@@ -259,7 +265,8 @@
    * is called once per 0.1 s with {obs, meas, setpoint, out} and returns valve commands [TFV, TOV]. */
   class Episode {
     constructor(opts) {
-      this.p = opts.params; this.trim = opts.trim;
+      this.p = this.base = opts.params; this.trim = opts.trim;
+      this.dt = opts.dt || DT; this.faults = opts.faults || []; this.memo = {}; this.faultSig = "";
       this.preview = opts.preview !== false; this.nFuture = opts.nFuture ?? 4; this.nPast = opts.nPast ?? 3;
       this.sensorDelay = opts.sensorDelay !== false; this.noise = opts.noise !== false;
       this.delay = opts.delay || { p_cc: 0.1, rof: 0.2 };
@@ -284,6 +291,7 @@
       const ir = this.sensorDelay ? Math.max(0, n - 1 - Math.round(this.delay.rof / SUB)) : n - 1;
       let pm = h[ip][0], rm = h[ir][1];
       if (this.noise) { pm += this.rand.normal(0, 0.05); rm += this.rand.normal(0, 0.005); }
+      if (this.faults.length) [pm, rm] = sensorReading(this.faults, this.k * this.dt, pm, rm, this.memo);
       return [pm, rm];
     }
     frame() {
@@ -310,8 +318,12 @@
       u = [clip(u[0], U_LOW[0], U_HIGH[0]), clip(u[1], U_LOW[1], U_HIGH[1])];
       const du = Math.abs(u[0] - this.uPrev[0]) + Math.abs(u[1] - this.uPrev[1]);
       this.uPrev = u;
+      if (this.faults.length) {  // malfunctions change the engine from their onset on
+        const t = this.k * this.dt, sig = this.faults.map((f) => severity(f, t)).join(",");
+        if (sig !== this.faultSig) { this.faultSig = sig; this.p = this.model.p = engineParams(this.base, this.faults, t); }
+      }
       this.model.command(u[0], u[1]);
-      for (let q = 0; q < Math.round(DT / SUB); q++) {
+      for (let q = 0; q < Math.round(this.dt / SUB); q++) {
         this.out = this.model.advance(SUB);
         this.hist.push([this.out.p_cc, this.out.rof]);
       }
@@ -325,11 +337,98 @@
       const rTrack = (Math.exp(-this.delta * eP) - 1) + (Math.exp(-this.delta * eR) - 1);
       const reward = rTrack - this.beta * nViol - this.duWeight * du;
       this.frames = [this.frame()].concat(this.frames.slice(0, -1));
-      return { t: k * DT, p_cc: o.p_cc, rof: o.rof, p_ref: this.pref[k], rof_ref: this.rref[k], x_tfv: o.x_tfv, x_tov: o.x_tov,
+      return { t: k * this.dt, p_cc: o.p_cc, rof: o.rof, p_ref: this.pref[k], rof_ref: this.rref[k], x_tfv: o.x_tfv, x_tov: o.x_tov,
         u_tfv: u[0], u_tov: u[1], du, t_turbine: o.t_rc, t_lng: o.t_lng, n_otp: o.n_otp, n_ftp: o.n_ftp, p_rc: o.p_rc,
-        m_turbines: o.m_tf + o.m_to, m_tf: o.m_tf, m_to: o.m_to, m_bpv: o.m_bpv, t_rc: o.t_rc, m_lox: o.m_lox, m_lng: o.m_lng, m_rc: o.m_rc, q_wall: o.q_wall,
+        m_turbines: o.m_tf + o.m_to, m_tf: o.m_tf, m_to: o.m_to, m_bpv: o.m_bpv, t_rc: o.t_rc, m_lox: o.m_lox, m_lng: o.m_lng, m_rc: o.m_rc, q_wall: o.q_wall, m_inj: o.m_inj,
+        m_leak_o: o.m_leak_o, m_leak_f: o.m_leak_f,
         p_meas: this.meas[0], rof_meas: this.meas[1], violations: viol, n_viol: nViol, r_track: rTrack, reward };
     }
+  }
+
+  /* Malfunctions (faults.py): severity rises from 0 to 1 at t0 (or over ramp seconds) and scales mag. */
+  function severity(f, t) {
+    const t0 = f.t0 || 0, ramp = f.ramp || 0;
+    if (t < t0 - 1e-9) return 0;
+    if (ramp <= 0) return 1;
+    return Math.min(1, (t - t0) / ramp);
+  }
+  function engineParams(base, faults, t) {
+    const ch = {};
+    for (const f of faults) {
+      const s = severity(f, t);
+      if (s <= 0) continue;
+      const m = f.mag * s;
+      switch (f.kind) {
+        case "stuck_tfv": ch.stuck_tfv = 1; break;
+        case "stuck_tov": ch.stuck_tov = 1; break;
+        case "actuator_delay": ch.valve_delay = base.valve_delay + m; break;
+        case "bearing_ftp": ch.drag_f = (base.drag_f || 0) + m; break;
+        case "bearing_otp": ch.drag_o = (base.drag_o || 0) + m; break;
+        case "leak_fuel": ch.leak_f = m; break;
+        case "leak_lox": ch.leak_o = m; break;
+        case "block_ft": ch.k_tfv = base.k_tfv * (1 - m); break;
+        case "block_ot": ch.k_tov = base.k_tov * (1 - m); break;
+        case "heat": ch.q_ref = base.q_ref * (1 + m); break;
+        case "ageing": ch.a_tf = base.a_tf * (1 - m); ch.a_to = base.a_to * (1 - m); break;
+        default: break;
+      }
+    }
+    return Object.keys(ch).length ? Object.assign({}, base, ch) : base;
+  }
+  function sensorReading(faults, t, p, r, memo) {
+    for (const f of faults) {
+      const s = severity(f, t);
+      if (s <= 0) continue;
+      const m = f.mag;
+      if (f.kind === "sensor_pcc_bias") p += m * s;
+      else if (f.kind === "sensor_pcc_drift") p += m * Math.max(0, t - (f.t0 || 0));
+      else if (f.kind === "sensor_pcc_frozen") { if (memo.p_cc === undefined) memo.p_cc = p; p = memo.p_cc; }
+      else if (f.kind === "sensor_rof_gain") r *= 1 + m * s;
+    }
+    return [p, r];
+  }
+
+  /* PI gains for a closed-loop bandwidth per loop (SIMC, pi.py gains_for_bandwidth), and loop margins. */
+  function piFromBandwidth(fP, fR, loops) {
+    const out = {};
+    for (const [f, lp, kpKey, kiKey] of [[fP, loops.p, "kp_p", "ki_p"], [fR, loops.rof, "kp_r", "ki_r"]]) {
+      const lam = 1 / (2 * Math.PI * f);
+      const kp = lp.tau / (lp.k * (lam + lp.theta)), ti = Math.min(lp.tau, 4 * (lam + lp.theta));
+      out[kpKey] = kp; out[kiKey] = kp / ti;
+    }
+    return out;
+  }
+  function loopMargins(g, loops) {
+    const res = {};
+    for (const [name, kp, ki] of [["p", g.kp_p, g.ki_p], ["rof", g.kp_r, g.ki_r]]) {
+      const lp = loops[name];
+      // L(jw) = (kp + ki / jw) k e^{-jw theta} / (1 + jw tau), as magnitude and phase
+      const mag = (w) => Math.hypot(kp, ki / w) * lp.k / Math.hypot(1, w * lp.tau);
+      const phase = (w) => Math.atan2(-ki / w, kp) - w * lp.theta - Math.atan(w * lp.tau);
+      let lo = 1e-3, hi = 1e3;
+      for (let i = 0; i < 80; i++) { const mid = Math.sqrt(lo * hi); if (mag(mid) > 1) lo = mid; else hi = mid; }
+      const wc = Math.sqrt(lo * hi);
+      let pm = 180 + phase(wc) * 180 / Math.PI;
+      pm = ((pm + 180) % 360 + 360) % 360 - 180;
+      res[name] = { fc: wc / (2 * Math.PI), pm };
+    }
+    return res;
+  }
+
+  /* One of the challenge's test cases in miniature (scenarios.json, scenarios.py episode_options). */
+  function scenarioOptions(sc, base, dt, horizon) {
+    dt = dt || DT; horizon = horizon ?? 4;
+    const prof = !sc.profile || sc.profile === "eval" ? evalProfile(dt, horizon) : profileFromKnots(sc.profile.knots, sc.profile.duration, dt, horizon);
+    let params = base;
+    const spec = sc.params || {};
+    if (Object.keys(spec).length) {
+      params = Object.assign({}, base);
+      for (const [k, f] of Object.entries(spec.factors || {})) params[k] = base[k] * f;
+      if (spec.valve_delay !== undefined) params.valve_delay = spec.valve_delay;
+    }
+    const o = { params, pref: prof.pref, rref: prof.rref, faults: (sc.faults || []).slice() };
+    if (sc.delay) o.delay = Object.assign({}, sc.delay);
+    return o;
   }
 
   function evalProfile(dt, horizon) {
@@ -355,7 +454,8 @@
     return { pref, rref };
   }
 
-  root.LumenModel = { X_TFV, V_TFV, X_TOV, V_TOV, W_O, W_F, M_O, M_F, T_W, T_LNG, RPM, DT, SUB, U_LOW, U_HIGH, LIMITS,
+  root.LumenModel = { X_TFV, V_TFV, X_TOV, V_TOV, W_O, W_F, M_O, M_F, T_W, T_LNG, RPM, DT, DT_LEGACY, SUB, U_LOW, U_HIGH, LIMITS,
+    severity, engineParams, sensorReading, piFromBandwidth, loopMargins, scenarioOptions,
     valveArea, cstarFactor, pumpDp, algebraic, derivatives, outputs, solve, steadyState, EngineModel, TrimTable,
     DecoupledPI, mlp, toValves, toAction, violations, rng, Episode, evalProfile, profileFromKnots };
 })(typeof window !== "undefined" ? window : globalThis);

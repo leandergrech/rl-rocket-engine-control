@@ -31,6 +31,9 @@
   const mix = (c1, c2, t) => c1.map((v, i) => Math.round(lerp(v, c2[i], clamp(t, 0, 1))));
   const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
   const isDark = () => document.body.getAttribute("data-md-color-scheme") === "slate";
+  // ?capture=1 drives the animation from timers, so headless screenshots (virtual time) can show it moving.
+  const CAPTURE = typeof location !== "undefined" && /[?&]capture=1/.test(location.search);
+  const nextFrame = (cb) => (CAPTURE ? setTimeout(() => cb(performance.now()), 16) : requestAnimationFrame(cb));
   const LIM = () => (window.LumenModel && window.LumenModel.LIMITS) || { rof_min: 2.5, rof_max: 4.0, t_turbine_max: 700, n_otp_max: 28000, n_ftp_max: 50000, p_rc_min: 46 };
   const kRpm = (n) => `${(Math.round(n / 100) / 10).toFixed(1)}k`;
 
@@ -68,6 +71,18 @@
     meas: [[SENSOR.x, SENSOR.y], [SENSOR.x, 150], [CAB.x + 14, 150], [CAB.x + 14, CAB.y + CAB.h]],
     tov: [[CAB.x, CAB.y + 12], [VALVES.tov[0] + 26, VALVES.tov[1] - 7]],
     tfv: [[CAB.x, CAB.y + 32], [VALVES.tfv[0] + 26, VALVES.tfv[1] - 7]],
+  };
+  // Malfunctions (faults.py): where each one shows, and where a leak sprays from (x, y, direction).
+  const FAULT_LEAK = { leak_fuel: [FTP.pump + 10, 342, 1], leak_lox: [OTP.pump, 138, -1] };
+  const FAULT_AT = {
+    stuck_tfv: [VALVES.tfv[0], VALVES.tfv[1], "tfv"], stuck_tov: [VALVES.tov[0], VALVES.tov[1], "tov"],
+    actuator_delay: [VALVES.tfv[0], VALVES.tfv[1], "tfv"],
+    bearing_ftp: [(FTP.pump + FTP.turb) / 2, FTP.y, "ftp"], bearing_otp: [(OTP.pump + OTP.turb) / 2, OTP.y, "otp"],
+    leak_fuel: [FTP.pump + 10, 342, "ftp"], leak_lox: [OTP.pump, 138, "otp"],
+    block_ft: [FTP.turb, FTP.y - FTP.rT, "ftp"], block_ot: [OTP.turb, OTP.y - OTP.rT, "otp"],
+    heat: [(G.cc0 + G.cc1) / 2, AXIS - G.rCC, "chamber"], ageing: [OTP.turb, OTP.y, "otp"],
+    sensor_pcc_bias: [SENSOR.x, SENSOR.y, "sensor"], sensor_pcc_drift: [SENSOR.x, SENSOR.y, "sensor"],
+    sensor_pcc_frozen: [SENSOR.x, SENSOR.y, "sensor"], sensor_rof_gain: [SENSOR.x, SENSOR.y, "sensor"],
   };
   // Callout anchors: a world point and the direction (screen) in which the bubble sits.
   const ANCH = {
@@ -151,6 +166,7 @@
       parts: [], rot: { o: 0, f: 0 }, flowPhase: {}, jacketPhase: 0, nozzleHeat: 0, flash: 0, frost: 1, runLabel: opts.runLabel || "closed loop",
       layers: { parts: false, flows: false, signals: true, callouts: true }, controller: null, perturb: null,
       callouts: [], dots: [], lastPulse: -1, ledT: -1, hover: null, drag: null, valveDrag: null,
+      faults: [], shake: 0, redFlash: 0, shocks: [],
     };
     for (const p of PIPES) S.flowPhase[p.id] = 0;
     const cam = { s: 1, ox: 0, oy: 0, ready: false };
@@ -242,14 +258,34 @@
         emit(Math.round(dt * 70 * k), () => ({ k: "purge", x: G.exit + 4, y: AXIS + (R() - 0.5) * G.rE * 1.4, vx: 160 + R() * 180 * k, vy: (R() - 0.5) * 40 - 8, r: 10 + R() * 12, g: 22, life: 3 + R() * 3, age: 0, a: 0.4 }));
       }
       if (S.state === "shutdown") emit(Math.round(dt * 60), () => ({ k: "smoke", x: G.exit + R() * 120, y: AXIS + (R() - 0.5) * 50, vx: 60 + R() * 60, vy: -20 - R() * 20, r: 14 + R() * 14, g: 14, life: 3 + R() * 2, age: 0, a: 0.3 }));
+      // malfunctions: sparks off a worn bearing, a jet out of a leak (faults.py)
+      const live = S.state !== "off" && S.state !== "purge";
+      for (const f of S.faults) {
+        if (f.sev <= 0 || !live) continue;
+        if (f.kind === "bearing_ftp" || f.kind === "bearing_otp") {
+          const U = f.kind === "bearing_ftp" ? FTP : OTP, bx = (U.pump + U.turb) / 2;
+          emit(Math.round(dt * 80 * Math.min(1, f.sev * 4) + R()), () => ({ k: "spark", x: bx + (R() - 0.5) * 14, y: U.y + (R() - 0.5) * 8, vx: (R() - 0.5) * 240, vy: -40 - R() * 170, r: 1, g: 0, life: 0.25 + R() * 0.45, age: 0, a: 1 }));
+          if (R() < dt * 5) emit(1, () => ({ k: "smoke", x: bx, y: U.y - 10, vx: 6 + R() * 10, vy: -18 - R() * 12, r: 4 + R() * 4, g: 8, life: 1.6 + R(), age: 0, a: 0.3 }));
+        } else if (f.kind === "leak_fuel" || f.kind === "leak_lox") {
+          const [lx, ly, dir] = FAULT_LEAK[f.kind];
+          emit(Math.round(dt * 110 * Math.min(1, f.sev * 4) + R()), () => ({ k: "leak", lox: f.kind === "leak_lox", x: lx + dir * 4, y: ly, vx: dir * (110 + R() * 140), vy: (R() - 0.7) * 80, r: 2 + R() * 3, g: 24, life: 0.7 + R() * 0.9, age: 0, a: 0.65 }));
+        }
+      }
+      S.shake = Math.max(0, S.shake - dt * 1.7);
+      S.redFlash = Math.max(0, S.redFlash - dt * 1.3);
+      for (const k of S.shocks) k.age += dt;
+      S.shocks = S.shocks.filter((k) => k.age < 0.9);
       // move
       const wind = 18;
       for (const q of S.parts) {
         q.age += dt;
         q.vx += (wind - q.vx) * dt * (q.k === "purge" ? 0.7 : 0.35);
-        if (q.k === "fire") q.vy -= 10 * dt; else if (q.k === "mist") q.vy += 2 * dt; else q.vy -= 3 * dt;
+        if (q.k === "fire") q.vy -= 10 * dt; else if (q.k === "mist") q.vy += 2 * dt;
+        else if (q.k === "spark") q.vy += 420 * dt; else if (q.k === "leak") q.vy += 70 * dt; else q.vy -= 3 * dt;
+        if (q.k === "spark") q.vx *= 1 - dt * 0.8; else q.vx += 0;
         q.x += q.vx * dt; q.y += q.vy * dt; q.r += q.g * dt;
-        if (q.k !== "mist" && q.k !== "vent" && q.y > GROUND - q.r * 0.3) q.y = GROUND - q.r * 0.3;
+        if (q.k === "spark" && q.y > GROUND) { q.y = GROUND; q.vy *= -0.35; q.vx *= 0.6; }
+        else if (q.k !== "mist" && q.k !== "vent" && q.y > GROUND - q.r * 0.3) q.y = GROUND - q.r * 0.3;
       }
       S.parts = S.parts.filter((q) => q.age < q.life && q.x < xR + 80 && q.y > yT - 80);
       // signal pulses and callouts
@@ -350,6 +386,13 @@
     function drawValve(g, C, key, open, cmd) {
       const [x, y] = VALVES[key];
       const moving = cmd != null ? cmd - open : 0;
+      const stuck = fault("stuck_" + key), lag = fault("actuator_delay");
+      if (stuck) {  // frozen: a red ring, and the actuator straining while the command moves on
+        g.save(); g.beginPath(); g.arc(x + 6, y, 21, 0, 2 * Math.PI);
+        g.strokeStyle = `rgba(224,36,94,${0.5 + 0.4 * pulseA()})`; g.lineWidth = 3; g.stroke(); g.restore();
+      } else if (lag) {
+        g.save(); g.beginPath(); g.arc(x + 6, y, 20, 0, 2 * Math.PI); g.strokeStyle = `rgba(232,162,0,${0.4 + 0.3 * pulseA()})`; g.lineWidth = 2; g.setLineDash([3, 3]); g.stroke(); g.restore();
+      }
       // halo while the valve travels towards its command, the stronger the further it has to go
       if (Math.abs(moving) > 0.003 && S.state !== "off") {
         g.save(); g.globalCompositeOperation = C.dark ? "lighter" : "source-over";
@@ -367,8 +410,12 @@
       g.beginPath(); g.moveTo(-7 * Math.cos(a), -7 * Math.sin(a)); g.lineTo(7 * Math.cos(a), 7 * Math.sin(a)); g.stroke();
       g.restore();
       // actuator and opening gauge, with the command as a white tick
+      g.save();
+      if (stuck && Math.abs(moving) > 0.01) g.translate(Math.sin(S.t * 70) * 1.2, 0);
       g.fillStyle = rgba(C.steelDark, 1);
       g.fillRect(x + 10, y - 7, 16, 14);
+      g.restore();
+      if (stuck) padlock(g, x - 14, y - 16, 1.1, "#e0245e");
       const a0 = Math.PI * 0.75, span = Math.PI * 1.5, a1 = a0 + span * clamp(open, 0, 1);
       g.beginPath(); g.arc(x + 18, y, 5.5, a0, a0 + span); g.strokeStyle = "rgba(255,255,255,0.35)"; g.lineWidth = 2.2; g.stroke();
       g.beginPath(); g.arc(x + 18, y, 5.5, a0, a1); g.strokeStyle = "#ff9a3c"; g.stroke();
@@ -378,7 +425,10 @@
         g.strokeStyle = C.dark ? "#ffffff" : "#1d2236"; g.lineWidth = 1.4; g.stroke();
       }
     }
-    function drawTurbopump(g, C, U, rot, n, nMax, bad, lit) {
+    function drawTurbopump(g, C, U, rot, n, nMax, bad, lit, fx) {
+      fx = fx || {};
+      g.save();
+      if (fx.bearing) g.translate(Math.sin(S.t * 97) * 1.8 * fx.bearing, Math.cos(S.t * 113) * 1.3 * fx.bearing);  // a worn bearing shakes the pump
       // bearing block and shaft
       g.fillStyle = rgba(C.steelDark, 1);
       g.fillRect(U.pump + 8, U.y - 8, U.turb - U.pump - 16, 16);
@@ -392,7 +442,8 @@
         g.beginPath(); g.roundRect ? g.roundRect(U.pump - U.rP - 6, U.y - U.rP - 6, U.turb + U.rT - U.pump + U.rP + 12, 2 * U.rP + 12, 14) : g.rect(U.pump - U.rP - 6, U.y - U.rP - 6, U.turb + U.rT - U.pump + U.rP + 12, 2 * U.rP + 12);
         g.stroke(); g.restore();
       }
-      for (const [cx, r, blades, col] of [[U.pump, U.rP, 6, C.steel], [U.turb, U.rT, 14, mix(C.steel, [230, 140, 80], 0.35)]]) {
+      const turbCol = mix(mix(C.steel, [230, 140, 80], 0.35), [150, 82, 40], (fx.rust || 0) * 4);  // ageing: rust
+      for (const [cx, r, blades, col] of [[U.pump, U.rP, 6, C.steel], [U.turb, U.rT, 14, turbCol]]) {
         g.beginPath(); g.arc(cx, U.y, r, 0, 2 * Math.PI);
         g.fillStyle = rgba(col, 1); g.fill();
         g.lineWidth = bad && cx === U.turb ? 2.5 : 1.3; g.strokeStyle = bad && cx === U.turb ? "#ff4d4d" : rgba(C.steelDark, 1); g.stroke();
@@ -414,6 +465,31 @@
         g.beginPath(); g.arc(U.pump, U.y, U.rP + 4, -Math.PI / 2, -Math.PI / 2 + 2 * Math.PI * clamp(f, 0, 1));
         g.strokeStyle = col; g.lineWidth = 2.6; g.lineCap = "round"; g.stroke();
       }
+      if (fx.bearing) {  // the hot bearing between pump and turbine
+        const bx = (U.pump + U.turb) / 2, a = 0.35 + 0.35 * fx.bearing * (0.7 + 0.3 * Math.sin(S.t * 14));
+        g.save(); g.globalCompositeOperation = C.dark ? "lighter" : "source-over";
+        const gl = g.createRadialGradient(bx, U.y, 1, bx, U.y, 22);
+        gl.addColorStop(0, `rgba(255,190,90,${a})`); gl.addColorStop(0.5, `rgba(255,90,30,${a * 0.5})`); gl.addColorStop(1, "rgba(255,60,20,0)");
+        g.fillStyle = gl; g.fillRect(bx - 24, U.y - 24, 48, 48); g.restore();
+      }
+      if (fx.block) {  // a blocked turbine nozzle: soot on the wheel, a cross on the inlet
+        g.save(); g.globalAlpha = 0.25 + 0.5 * Math.min(1, fx.block * 2);
+        g.fillStyle = "#1a1a1a";
+        for (let i = 0; i < 9; i++) { const a = i * 2.4, rr = U.rT * (0.25 + 0.6 * ((i * 37) % 10) / 10); g.beginPath(); g.arc(U.turb + Math.cos(a) * rr, U.y + Math.sin(a) * rr, 2.2, 0, 2 * Math.PI); g.fill(); }
+        g.globalAlpha = 1; g.strokeStyle = "#e0245e"; g.lineWidth = 2.6; g.lineCap = "round";
+        const ix = U.turb, iy = U.y - U.rT - 7;
+        g.beginPath(); g.moveTo(ix - 5, iy - 5); g.lineTo(ix + 5, iy + 5); g.moveTo(ix + 5, iy - 5); g.lineTo(ix - 5, iy + 5); g.stroke();
+        g.restore();
+      }
+      g.restore();
+    }
+    // A padlock: drawn over a valve that has frozen in place.
+    function padlock(g, x, y, s, col) {
+      g.save(); g.translate(x, y); g.scale(s, s);
+      g.strokeStyle = col; g.lineWidth = 1.8; g.beginPath(); g.arc(0, -3, 3.4, Math.PI, 0); g.lineTo(3.4, 0); g.moveTo(-3.4, 0); g.lineTo(-3.4, -3); g.stroke();
+      g.fillStyle = col; g.beginPath(); g.roundRect ? g.roundRect(-5, -0.5, 10, 7.5, 1.6) : g.rect(-5, -0.5, 10, 7.5); g.fill();
+      g.fillStyle = "#fff"; g.fillRect(-0.7, 2, 1.4, 2.6);
+      g.restore();
     }
     function drawCabinet(g, C) {
       const c = S.controller;
@@ -434,30 +510,33 @@
     function drawSignals(g, C) {
       const c = S.controller;
       if (!c || !S.layers.signals) return;
+      const sensorBad = S.faults.some((f) => f.sev > 0 && f.kind.startsWith("sensor"));
       const col = c.color || "#1baf7a";
       g.save(); g.lineCap = "round";
       const paths = c.kind === "open" || c.kind === "you" ? ["tov", "tfv"] : ["meas", "tov", "tfv"];
       for (const k of paths) {
         const pts = SIG[k];
         g.beginPath(); g.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) g.lineTo(pts[i][0], pts[i][1]);
-        g.strokeStyle = col; g.globalAlpha = 0.65; g.lineWidth = 1.4; g.setLineDash(k === "meas" ? [2, 3] : [6, 3]); g.stroke();
+        g.strokeStyle = k === "meas" && sensorBad ? "#e0245e" : col; g.globalAlpha = 0.65; g.lineWidth = 1.4; g.setLineDash(k === "meas" ? [2, 3] : [6, 3]); g.stroke();
       }
       g.setLineDash([]); g.globalAlpha = 1;
       // pulses: the measurement travels to the controller, then the commands to the valves
       for (const d of S.dots) {
         const s = (d.age - d.delay) / 0.2;
         if (s < 0 || s > 1 || !paths.includes(d.path)) continue;
-        const [px, py] = pointAlong(SIG[d.path], s);
+        let [px, py] = pointAlong(SIG[d.path], s);
+        const bad = d.path === "meas" && sensorBad;  // a faulty reading travels as a red, jittering pulse
+        if (bad) { px += (Math.random() - 0.5) * 4; py += (Math.random() - 0.5) * 4; }
         const gr = g.createRadialGradient(px, py, 0, px, py, 6);
-        gr.addColorStop(0, "rgba(255,255,255,0.95)"); gr.addColorStop(0.4, col); gr.addColorStop(1, "rgba(0,0,0,0)");
+        gr.addColorStop(0, "rgba(255,255,255,0.95)"); gr.addColorStop(0.4, bad ? "#e0245e" : col); gr.addColorStop(1, "rgba(0,0,0,0)");
         g.fillStyle = gr; g.beginPath(); g.arc(px, py, 6, 0, 2 * Math.PI); g.fill();
       }
       // the sensor tap on the chamber
       if (paths.includes("meas")) {
         const blink = S.t - S.lastPulse < 0.08 && S.state === "run";
         g.beginPath(); g.arc(SENSOR.x, SENSOR.y, 4.2, 0, 2 * Math.PI);
-        g.fillStyle = blink ? "#ffffff" : rgba(C.steelDark, 1); g.fill();
-        g.strokeStyle = col; g.lineWidth = 1.6; g.stroke();
+        g.fillStyle = sensorBad ? (pulseA() > 0.6 ? "#e0245e" : "#fff") : blink ? "#ffffff" : rgba(C.steelDark, 1); g.fill();
+        g.strokeStyle = sensorBad ? "#e0245e" : col; g.lineWidth = 1.6; g.stroke();
       }
       g.restore();
     }
@@ -687,6 +766,90 @@
       g.textBaseline = "alphabetic";
       return [x, tw];
     }
+    // ---------------------------------------------------------------- malfunctions (faults.py)
+    function fault(kind) { return S.faults.find((f) => f.kind === kind && f.sev > 0); }
+    function f_mag(kind) { const f = fault(kind); return f ? f.mag : 0; }
+    // In the world: the leak's spray and frost, a hot spot on the wall, sparks
+    function drawFaultWorld(g, C) {
+      for (const f of S.faults) {
+        if (f.sev <= 0) continue;
+        if (f.kind === "leak_fuel" || f.kind === "leak_lox") {
+          const [lx, ly, dir] = FAULT_LEAK[f.kind];
+          // frost puddle under the leak, growing while it lasts
+          const grow = Math.min(1, (f.age || 0) / 8) * Math.min(1, f.sev * 3);
+          g.save(); g.fillStyle = C.dark ? "rgba(200,225,255,0.22)" : "rgba(255,255,255,0.7)";
+          g.beginPath(); g.ellipse(lx + dir * 60, GROUND + 3, 18 + 50 * grow, 3 + 3 * grow, 0, 0, 2 * Math.PI); g.fill(); g.restore();
+          // the breach itself
+          g.save(); g.beginPath(); g.arc(lx, ly, 5 + 2 * pulseA(), 0, 2 * Math.PI);
+          g.strokeStyle = "#e0245e"; g.lineWidth = 2; g.stroke(); g.restore();
+        } else if (f.kind === "heat") {
+          const x = (G.cc0 + G.cc1) / 2 + 6, a = (0.35 + 0.35 * pulseA()) * Math.min(1, f.sev * 1.5);
+          g.save(); g.globalCompositeOperation = C.dark ? "lighter" : "source-over";
+          const hs = g.createRadialGradient(x, AXIS - G.rCC - 3, 1, x, AXIS - G.rCC - 3, 20);
+          hs.addColorStop(0, `rgba(255,250,220,${a})`); hs.addColorStop(0.4, `rgba(255,140,40,${a * 0.8})`); hs.addColorStop(1, "rgba(255,80,20,0)");
+          g.fillStyle = hs; g.fillRect(x - 22, AXIS - G.rCC - 24, 44, 40); g.restore();
+          // heat shimmer rising off the wall
+          g.save(); g.strokeStyle = `rgba(255,150,60,${0.5 * Math.min(1, f.sev * 1.5)})`; g.lineWidth = 1.2;
+          for (let i = 0; i < 3; i++) {
+            const x0 = x - 10 + i * 10; g.beginPath();
+            for (let y = 0; y < 26; y += 2) { const yy = AXIS - G.rCC - 8 - y; const xx = x0 + Math.sin(S.t * 6 + y * 0.4 + i) * 2.4; y ? g.lineTo(xx, yy) : g.moveTo(xx, yy); }
+            g.stroke();
+          }
+          g.restore();
+        }
+      }
+      // sparks and leak spray
+      g.save();
+      for (const q of S.parts) {
+        const life = q.age / q.life;
+        if (q.k === "spark") {
+          g.globalCompositeOperation = C.dark ? "lighter" : "source-over";
+          g.strokeStyle = `rgba(255,${Math.round(230 - 120 * life)},${Math.round(140 - 120 * life)},${1 - life})`; g.lineWidth = 1.4;
+          g.beginPath(); g.moveTo(q.x, q.y); g.lineTo(q.x - q.vx * 0.02, q.y - q.vy * 0.02); g.stroke();
+        } else if (q.k === "leak") {
+          g.globalCompositeOperation = "source-over";
+          g.globalAlpha = q.a * (1 - life) * Math.min(1, q.age * 8);
+          g.drawImage(q.lox ? SPR.blue : SPR.white, q.x - q.r, q.y - q.r, 2 * q.r, 2 * q.r);
+          g.globalAlpha = 1;
+        }
+      }
+      g.restore();
+    }
+    // On the screen: tags on the failed parts, the shockwave of an onset, a red flash at the edges
+    function drawFaultScreen(g, C, w, h) {
+      const red = "#e0245e";
+      for (const f of S.faults) {
+        if (f.sev <= 0) continue;
+        const at = FAULT_AT[f.kind];
+        if (!at) continue;
+        const [sx, sy] = toS(at[0], at[1]);
+        let tag = null, dx = 0, dy = -30;
+        if (f.kind.startsWith("stuck")) { tag = "STUCK"; dx = -34; dy = -30; }
+        else if (f.kind === "actuator_delay") { tag = `LAG +${(f.mag * f.sev * 1000).toFixed(0)} ms`; dy = 34; }
+        else if (f.kind.startsWith("bearing")) { tag = "BEARING"; dy = f.kind === "bearing_ftp" ? 38 : -36; }
+        else if (f.kind.startsWith("leak")) { tag = `LEAK ${(100 * f.mag * f.sev).toFixed(0)} %`; dx = f.kind === "leak_fuel" ? 70 : -60; dy = f.kind === "leak_fuel" ? 4 : -18; }
+        else if (f.kind.startsWith("block")) { tag = `BLOCKED ${(100 * f.mag * f.sev).toFixed(0)} %`; dx = 34; dy = -18; }
+        else if (f.kind === "heat") { tag = `HOT SPOT +${(100 * f.mag * f.sev).toFixed(0)} %`; dx = 40; dy = -46; }
+        else if (f.kind === "ageing") { tag = `AGEING −${(100 * f.mag * f.sev).toFixed(0)} %`; dx = 40; dy = -40; }
+        else if (f.kind.startsWith("sensor") && S.row) {
+          const r = S.row, rof = f.kind === "sensor_rof_gain";
+          tag = rof ? `ROF reads ${(r.rof_meas ?? r.rof).toFixed(2)} · true ${r.rof.toFixed(2)}` : `reads ${(r.p_meas ?? r.p_cc).toFixed(1)} · true ${r.p_cc.toFixed(1)} bar`;
+          dx = -20; dy = -64;
+        }
+        if (tag) pill(g, C, tag, sx + dx, sy + dy, red, { align: "center", bold: true, color: "#fff", fill: red });
+      }
+      for (const k of S.shocks) {  // the onset's shockwave
+        const [sx, sy] = toS(k.x, k.y), a = 1 - k.age / 0.9;
+        g.save(); g.strokeStyle = `rgba(224,36,94,${a})`; g.lineWidth = 3 * a + 1;
+        g.beginPath(); g.arc(sx, sy, 10 + k.age * 140, 0, 2 * Math.PI); g.stroke();
+        g.beginPath(); g.arc(sx, sy, 6 + k.age * 80, 0, 2 * Math.PI); g.stroke(); g.restore();
+      }
+      if (S.redFlash > 0) {  // red at the edges of the view
+        const v = g.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.3, w / 2, h / 2, Math.max(w, h) * 0.75);
+        v.addColorStop(0, "rgba(224,36,94,0)"); v.addColorStop(1, `rgba(224,36,94,${0.45 * S.redFlash})`);
+        g.fillStyle = v; g.fillRect(0, 0, w, h);
+      }
+    }
     // a small cog, drawn rather than typed, so it looks the same in every font
     function gearIcon(g, cx, cy, r, col, hole) {
       g.save(); g.translate(cx, cy); g.fillStyle = col; g.beginPath();
@@ -780,7 +943,7 @@
         g.font = "600 12px Inter, sans-serif";
         const w1 = g.measureText(c.text).width;
         g.font = "11px Inter, sans-serif";
-        const tw = Math.max(w1, g.measureText(c.sub || "").width) + 20;
+        const tw = Math.max(w1 + (c.icon ? 19 : 0), g.measureText(c.sub || "").width) + 20;
         const bh = c.sub ? 38 : 24;
         let bx = sx + an[2] / dl * D - tw / 2, by = sy + an[3] / dl * D - bh / 2;
         bx = clamp(bx, I.l + 6, w - I.r - tw - 6); by = clamp(by, Math.max(I.t, view.safeTop || 0) + 6, h - I.b - bh - 6);
@@ -790,7 +953,13 @@
         g.beginPath(); g.arc(sx, sy, 3.5, 0, 2 * Math.PI); g.fillStyle = c.color; g.fill();
         g.fillStyle = C.pill; g.beginPath(); g.roundRect ? g.roundRect(bx, by, tw, bh, 8) : g.rect(bx, by, tw, bh); g.fill(); g.stroke();
         g.fillStyle = c.color; g.fillRect(bx, by + 5, 3, bh - 10);
-        g.textAlign = "left"; g.fillStyle = C.ink; g.font = "600 12px Inter, sans-serif"; g.fillText(c.text, bx + 10, by + 16);
+        let tx = bx + 10;
+        if (c.icon === "warn") {  // a drawn warning triangle
+          g.fillStyle = c.color; g.beginPath(); g.moveTo(tx + 7, by + 5); g.lineTo(tx + 14, by + 18); g.lineTo(tx, by + 18); g.closePath(); g.fill();
+          g.fillStyle = "#fff"; g.fillRect(tx + 6.2, by + 9, 1.6, 5); g.fillRect(tx + 6.2, by + 15, 1.6, 1.6);
+          tx += 19;
+        }
+        g.textAlign = "left"; g.fillStyle = C.ink; g.font = "600 12px Inter, sans-serif"; g.fillText(c.text, tx, by + 16);
         if (c.sub) { g.font = "11px Inter, sans-serif"; g.fillStyle = C.ink2; g.fillText(c.sub, bx + 10, by + 31); }
         g.restore();
         n++;
@@ -826,7 +995,11 @@
         case "ignition": return { text: "IGNITION · pressure rise", color: "#e8651e", kind: "seq" };
         case "shutdown": return { text: "SHUTDOWN", color: "#c98500", kind: "seq" };
         case "purge": return { text: "LN2 PURGE", color: "#5a6478", kind: "seq" };
-        default: return v.length ? { text: "HOT FIRE · limit: " + v.map((k) => VIOL_NAMES[k] || k).join(", "), color: "#e34948", kind: "limit" } : { text: "HOT FIRE · " + S.runLabel, color: "#1baf7a", kind: "run" };
+        default: {
+          const fl = S.faults.filter((f) => f.sev > 0).map((f) => f.short || f.label);
+          if (fl.length) return { text: "FAULT · " + fl.join(", ") + (v.length ? " · limit: " + v.map((k) => VIOL_NAMES[k] || k).join(", ") : ""), color: "#c2185b", kind: "fault" };
+          return v.length ? { text: "HOT FIRE · limit: " + v.map((k) => VIOL_NAMES[k] || k).join(", "), color: "#e34948", kind: "limit" } : { text: "HOT FIRE · " + S.runLabel, color: "#1baf7a", kind: "run" };
+        }
       }
     }
     let lastStatus = "";
@@ -842,7 +1015,8 @@
       g.setTransform(dpr, 0, 0, dpr, 0, 0);
       g.clearRect(0, 0, w, h);
       xL = -cam.ox / cam.s; xR = (w - cam.ox) / cam.s; yT = -cam.oy / cam.s; yB = (h - cam.oy) / cam.s;
-      g.setTransform(dpr * cam.s, 0, 0, dpr * cam.s, dpr * cam.ox, dpr * cam.oy);
+      const shx = S.shake * 7 * Math.sin(S.t * 83), shy = S.shake * 5 * Math.cos(S.t * 71);  // a fault's jolt
+      g.setTransform(dpr * cam.s, 0, 0, dpr * cam.s, dpr * (cam.ox + shx), dpr * (cam.oy + shy));
       // sky and forest outside the cell
       const sky = g.createLinearGradient(0, Math.min(0, yT), 0, GROUND);
       sky.addColorStop(0, rgba(C.sky0, 1)); sky.addColorStop(1, rgba(C.sky1, 1));
@@ -869,11 +1043,15 @@
       drawPipes(g, C);
       drawSignals(g, C);
       const row = S.row, off = S.state === "off" || S.state === "purge", L = LIM();
-      drawTurbopump(g, C, OTP, S.rot.o, off ? 0 : row && row.n_otp, L.n_otp_max, viol("n_otp") || viol("t_turbine"), S.hover === "otp");
-      drawTurbopump(g, C, FTP, S.rot.f, off ? 0 : row && row.n_ftp, L.n_ftp_max, viol("n_ftp") || viol("t_turbine"), S.hover === "ftp");
+      const sev = (k) => { const f = fault(k); return f ? f.sev : 0; };
+      drawTurbopump(g, C, OTP, S.rot.o, off ? 0 : row && row.n_otp, L.n_otp_max, viol("n_otp") || viol("t_turbine") || sev("bearing_otp") > 0, S.hover === "otp",
+        { bearing: off ? 0 : sev("bearing_otp") * 4, block: sev("block_ot") * f_mag("block_ot"), rust: sev("ageing") * f_mag("ageing") });
+      drawTurbopump(g, C, FTP, S.rot.f, off ? 0 : row && row.n_ftp, L.n_ftp_max, viol("n_ftp") || viol("t_turbine") || sev("bearing_ftp") > 0, S.hover === "ftp",
+        { bearing: off ? 0 : sev("bearing_ftp") * 4, block: sev("block_ft") * f_mag("block_ft"), rust: sev("ageing") * f_mag("ageing") });
       if (row) { drawValve(g, C, "tov", row.x_tov, row.u_tov); drawValve(g, C, "tfv", row.x_tfv, row.u_tfv); }
       drawCabinet(g, C);
       drawEngine(g, C);
+      drawFaultWorld(g, C);
       drawParts(g, C, ["steam", "smoke", "purge", "vent"]);
       drawPlume(g, C);
       drawParts(g, C, ["fire"], C.dark ? "lighter" : null);
@@ -884,6 +1062,7 @@
       drawLabels(g, C);
       drawFlows(g, C);
       drawPerturb(g, C);
+      drawFaultScreen(g, C, w, h);
       drawCallouts(g, C);
       if (!opts.hud) drawOverlay(g, C, w, h);
     }
@@ -1036,9 +1215,9 @@
       last = ts;
       step(reduce ? dt * 0.5 : dt);
       draw();
-      if (visible && !document.hidden) raf = requestAnimationFrame(frame); else last = 0;
+      if ((visible || CAPTURE) && !document.hidden) raf = nextFrame(frame); else last = 0;
     }
-    function kick() { if (!raf) raf = requestAnimationFrame(frame); }
+    function kick() { if (!raf) raf = nextFrame(frame); }
     document.addEventListener("visibilitychange", kick);
     if (window.ResizeObserver) new ResizeObserver(() => { const w = parent.clientWidth, h = parent.clientHeight; if (w !== cv._pw || (opts.fill && h !== cv._ph)) { cv._pw = w; cv._ph = h; resize(); draw(); } }).observe(parent);
     else window.addEventListener("resize", () => { resize(); draw(); });
@@ -1051,7 +1230,7 @@
     function callout(key, textMain, sub, anchor, o) {
       o = o || {};
       S.callouts = S.callouts.filter((c) => c.key !== key);
-      S.callouts.push({ key, text: textMain, sub, anchor, age: 0, life: o.life || 3.2, color: o.color || (S.controller && S.controller.color) || "#e8651e" });
+      S.callouts.push({ key, text: textMain, sub, anchor, age: 0, life: o.life || 3.2, icon: o.icon, color: o.color || (S.controller && S.controller.color) || "#e8651e" });
       if (S.callouts.length > 3) S.callouts.shift();
     }
     return {
@@ -1068,6 +1247,14 @@
       get layers() { return Object.assign({}, S.layers); },
       setController(c) { S.controller = c; },
       setPerturb(p) { S.perturb = p; },
+      // faults: [{kind, sev (0-1 at the moment shown), mag, age (s since onset), label, short}]
+      setFaults(list) { S.faults = list || []; },
+      faultOnset(kind, label, sub) {  // the moment a fault starts: a jolt, a red flash, a shockwave and a callout
+        const at = FAULT_AT[kind] || [SENSOR.x, SENSOR.y, "chamber"];
+        if (!reduce) { S.shake = 1; S.redFlash = 1; }
+        S.shocks.push({ x: at[0], y: at[1], age: 0 });
+        callout("fault-" + kind, label, sub, at[2], { color: "#e0245e", life: 4.5, icon: "warn" });
+      },
       pulse() {  // one control step: measurement to the controller, then commands to the valves
         if (S.t - S.lastPulse < 0.07) return;
         S.lastPulse = S.t; S.ledT = S.t + 0.18;
@@ -1086,5 +1273,5 @@
     };
   }
 
-  window.ReStand = { create };
+  window.ReStand = { create, nextFrame };
 })();

@@ -1,9 +1,29 @@
 {
  "gains": {
-  "kp_p": 0.8702,
-  "ki_p": 0.0849,
-  "kp_r": 0.5824,
-  "ki_r": 4.6303
+  "kp_p": 0.9166,
+  "ki_p": 0.2265,
+  "kp_r": 0.7532,
+  "ki_r": 4.3835
  },
- "how": "Nelder-Mead on the mean return of 12 random 30 s training episodes (seeds 100-111), sensor delays and noise on, no randomisation; scripts/train.py pi"
+ "how": "Nelder-Mead on the mean return of 12 random 30 s training episodes (seeds 100-111) at 20 Hz, sensor delays and noise on, no randomisation; scripts/train.py pi",
+ "loops": {
+  "p": {
+   "k": 1.1039,
+   "tau": 1.3507,
+   "theta": 0.2219,
+   "theta_plant": 0.0969
+  },
+  "rof": {
+   "k": 0.7925,
+   "tau": 0.3757,
+   "theta": 0.3368,
+   "theta_plant": 0.1118
+  }
+ },
+ "loops_how": "first order plus dead time of each decoupled channel at 40 bar / ROF 3.4, fitted to the first 3 s of a step; dead time includes the sensor delay and half a control interval (pi.identify_loops)",
+ "bandwidth": [
+  0.15,
+  0.47
+ ],
+ "bandwidth_how": "grid search over 36 pairs of loop bandwidths on the 12 training episodes, by mean return (-225.2); scripts/train.py pi"
 }

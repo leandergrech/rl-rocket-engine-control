@@ -4,7 +4,9 @@ Modelled on test case 1 of the Dresia (2025) thesis (Chapter 5) and on what is p
 LUMEN Control Challenge, scaled to what the surrogate can reach with FCV, BPV, OCV and XCV frozen at
 their Table 4.6 positions:
 
-* control interval 0.1 s (thesis p. 79 and Table A.2), episodes of 30 s (the thesis uses 50 s);
+* control interval 0.05 s, the challenge's 20 Hz (organisers, October 2026; DLR's hardware controller
+  also ran at 20 Hz, thesis p. 99). The thesis's simulation studies used 0.1 s; ``dt=0.1`` reproduces
+  this repo's first baselines. Episodes of 30 s (the thesis uses 50 s);
 * actions: TFV and TOV commands, scaled from [-1, 1] to [0.1, 0.7] and [0.1, 0.5];
 * references: random holds, steps and ramps in 35-50 bar and ROF 3.0-3.8;
 * reward: thesis eq. 5.6-5.8 with delta = 12 and beta = 0.5 (Table A.2), plus a small valve-travel
@@ -12,8 +14,9 @@ their Table 4.6 positions:
   there is no freedom left to save turbine flow;
 * constraints (thesis Table 5.1): 2.5 <= ROF <= 4, turbine inlet < 700 K, OTP < 28,000 rpm,
   FTP < 50,000 rpm, p_RC > 46 bar;
-* optional reference preview (Nf = 4 future steps), observation stacking (Np = 3), sensor delays and
-  domain randomisation (thesis Table A.3), and noise.
+* optional reference preview (Nf = 4 future steps; the challenge has none), observation stacking
+  (Np = 3), sensor delays and domain randomisation (thesis Table A.3), noise, and malfunctions
+  (``faults.py``: stuck valves, bearing wear, leaks, blockages, sensor faults, slow drift).
 
 This is a surrogate of a surrogate: results here say nothing quantitative about the real challenge.
 """
@@ -29,11 +32,13 @@ import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
 
+from . import faults as faultlib
 from .model import EngineModel, outputs, steady_state
 from .params import DEFAULT_PARAMS, Params
 
-DT = 0.1
-SUB = 0.05  # resolution of the sensor-delay buffer [s]
+DT = 0.05         # control interval [s]: the challenge's 20 Hz
+DT_LEGACY = 0.1   # this repo's first baselines (the thesis's simulation setting)
+SUB = 0.05        # resolution of the sensor-delay buffer [s]
 P_RANGE = (35.0, 50.0)
 ROF_RANGE = (3.0, 3.8)
 U_LOW = np.array([0.1, 0.1])
@@ -106,6 +111,22 @@ def random_reference(rng: np.random.Generator, duration: float, dt: float = DT, 
     return np.interp(t, kt, kp), np.interp(t, kt, kr)
 
 
+def profile_from_knots(knots, duration: float, dt: float = DT, horizon: int = 4):
+    """Piecewise-linear set points through (t, p_cc, ROF) knots, exactly as lumen-model.js builds them."""
+    n = int(round(duration / dt)) + horizon + 1
+    pref, rref = np.empty(n), np.empty(n)
+    for i in range(n):
+        t = i * dt
+        j = 0
+        while j < len(knots) - 2 and knots[j + 1][0] < t:
+            j += 1
+        t0, p0, r0 = knots[j]
+        t1, p1, r1 = knots[min(j + 1, len(knots) - 1)]
+        w = min(max((t - t0) / (t1 - t0), 0.0), 1.0) if t1 > t0 else 1.0
+        pref[i], rref[i] = p0 + w * (p1 - p0), r0 + w * (r1 - r0)
+    return pref, rref
+
+
 def eval_profile(dt: float = DT, horizon: int = 4):
     """A fixed 40 s profile with steps and ramps in both outputs (used for plots and the Lab)."""
     knots = [(0, 40, 3.4), (5, 40, 3.4), (5.001, 45, 3.4), (10, 45, 3.4), (10.001, 45, 3.7), (15, 45, 3.7),
@@ -125,16 +146,18 @@ class LumenSurrogateEnv(gym.Env):
     def __init__(self, preview: bool = True, n_future: int = 4, n_past: int = 3, sensor_delay: bool = True,
                  noise: bool = True, randomise: bool = False, duration: float = 30.0, delta: float = 12.0,
                  beta: float = 0.5, gamma_econ: float = 0.0, du_weight: float = 0.5,
-                 params: Params | None = None, profile: str = "random", dt_sim: float = 0.005):
+                 params: Params | None = None, profile: str = "random", dt_sim: float = 0.005,
+                 dt: float = DT, faults: list | None = None):
         super().__init__()
         self.preview, self.n_future, self.n_past = preview, n_future, n_past
         self.sensor_delay, self.noise, self.randomise = sensor_delay, noise, randomise
         self.duration, self.delta, self.beta = duration, delta, beta
         self.gamma_econ, self.du_weight = gamma_econ, du_weight
         self.base_params = params or DEFAULT_PARAMS
-        self.profile, self.dt_sim = profile, dt_sim
+        self.profile, self.dt_sim, self.dt = profile, dt_sim, dt
+        self.faults = list(faults or [])
         self.trim = TrimTable()
-        self.n_steps = int(round(duration / DT))
+        self.n_steps = int(round(duration / dt))
         n_ref = 2 * (n_future + 1) if preview else 2
         self.frame_size = 2 + 2 + n_ref + 2 + 2 + 5
         self.observation_space = spaces.Box(-10.0, 10.0, (self.frame_size * (n_past + 1),), np.float32)
@@ -160,6 +183,8 @@ class LumenSurrogateEnv(gym.Env):
         if self.noise:
             p += self.np_random.normal(0, 0.05)
             r += self.np_random.normal(0, 0.005)
+        if self._faults:  # faulty sensors (faults.py)
+            p, r = faultlib.sensor_reading(self._faults, self._k * self.dt, p, r, self._sensor_memo)
         return p, r
 
     def _frame(self):
@@ -203,19 +228,24 @@ class LumenSurrogateEnv(gym.Env):
             self._delay = dict(p_cc=rng.uniform(0.05, 0.15), rof=rng.uniform(0.1, 0.25))
         else:
             self._delay = dict(SENSOR_DELAY)
+        if "delay" in options:
+            self._delay = dict(options["delay"])
         if "params" in options:
             p = options["params"]
-        self.params = p
+        self.params = self._base = p
+        self._faults = list(options.get("faults", self.faults))
+        self._sensor_memo = {}
+        dt = self.dt
         profile = options.get("profile", self.profile)
         if profile == "eval":
-            self._pref, self._rref = eval_profile(DT, self.n_future)
-            self.n_steps = int(round(40.0 / DT))
+            self._pref, self._rref = eval_profile(dt, self.n_future)
+            self.n_steps = int(round(40.0 / dt))
         elif isinstance(profile, tuple):
             self._pref, self._rref = (np.asarray(a, float) for a in profile)
             self.n_steps = len(self._pref) - self.n_future - 1
         else:
-            self._pref, self._rref = random_reference(rng, self.duration, DT, self.n_future)
-            self.n_steps = int(round(self.duration / DT))
+            self._pref, self._rref = random_reference(rng, self.duration, dt, self.n_future)
+            self.n_steps = int(round(self.duration / dt))
         u0 = np.clip(self.trim.valves(self._pref[0], self._rref[0]), U_LOW, U_HIGH)
         self.model = EngineModel(params=p, dt=self.dt_sim)
         self.model.state = steady_state(float(u0[0]), float(u0[1]), p)
@@ -235,8 +265,12 @@ class LumenSurrogateEnv(gym.Env):
         u = self.to_valves(np.asarray(action, float))
         du = np.abs(u - self._u).sum()
         self._u = u
+        if self._faults:  # malfunctions change the engine from their onset on (faults.py)
+            p = faultlib.engine_params(self._base, self._faults, self._k * self.dt)
+            if p != self.model.params:
+                self.model.params = self.params = p
         self.model.command(float(u[0]), float(u[1]))
-        for _ in range(int(round(DT / SUB))):
+        for _ in range(int(round(self.dt / SUB))):
             self._out = self.model.advance(SUB)
             self._hist.append((self._out["p_cc"], self._out["rof"]))
         self._hist = self._hist[-16:]
@@ -255,7 +289,7 @@ class LumenSurrogateEnv(gym.Env):
         reward -= self.gamma_econ * (o["m_tf"] + o["m_to"])
         reward -= self.du_weight * du
         self._frames = [self._frame()] + self._frames[:-1]
-        info = {"p_cc": o["p_cc"], "rof": o["rof"], "p_ref": self._pref[k], "rof_ref": self._rref[k],
+        info = {"t": k * self.dt, "p_cc": o["p_cc"], "rof": o["rof"], "p_ref": self._pref[k], "rof_ref": self._rref[k],
                 "x_tfv": o["x_tfv"], "x_tov": o["x_tov"], "u_tfv": u[0], "u_tov": u[1], "du": du,
                 "t_turbine": o["t_rc"], "n_otp": o["n_otp"], "n_ftp": o["n_ftp"], "p_rc": o["p_rc"],
                 "m_turbines": o["m_tf"] + o["m_to"], "violations": viol,

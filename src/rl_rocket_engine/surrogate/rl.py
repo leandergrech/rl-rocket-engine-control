@@ -16,12 +16,18 @@ import numpy as np
 from .env import LumenSurrogateEnv
 
 CONFIGS = {
-    # name: (algorithm, env kwargs, total steps)
-    "ppo-preview": ("ppo", dict(preview=True), 3_000_000),
-    "ppo-nopreview": ("ppo", dict(preview=False), 3_000_000),
-    "sac-preview": ("sac", dict(preview=True), 500_000),
-    "sac-nopreview": ("sac", dict(preview=False), 500_000),
+    # name: (algorithm, env kwargs, total steps, discount)
+    # The challenge's setting: 20 Hz, no preview of future set points (organisers, October 2026).
+    # gamma 0.99 at 20 Hz looks as far ahead in seconds (about 5 s) as 0.98 did at 10 Hz.
+    "ppo": ("ppo", dict(preview=False, dt=0.05), 6_000_000, 0.99),
+    "sac": ("sac", dict(preview=False, dt=0.05), 600_000, 0.99),
+    # This repo's first baselines, at 10 Hz with and without preview; kept for comparison and in the Lab.
+    "ppo-preview": ("ppo", dict(preview=True, dt=0.1), 3_000_000, 0.98),
+    "ppo-nopreview": ("ppo", dict(preview=False, dt=0.1), 3_000_000, 0.98),
+    "sac-preview": ("sac", dict(preview=True, dt=0.1), 500_000, 0.98),
+    "sac-nopreview": ("sac", dict(preview=False, dt=0.1), 500_000, 0.98),
 }
+CURRENT = ("ppo", "sac")
 
 
 def make_env(seed: int = 0, **kwargs):
@@ -50,19 +56,19 @@ def train(name: str, out_dir: Path, steps: int | None = None, seed: int = 0, n_e
     from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
 
     torch.set_num_threads(2)
-    algo, env_kwargs, default_steps = CONFIGS[name]
+    algo, env_kwargs, default_steps, gamma = CONFIGS[name]
     env_kwargs = dict(env_kwargs, randomise=randomise)
     steps = steps or default_steps
     t0 = time.time()
     if algo == "ppo":
         vec = (SubprocVecEnv if n_envs > 1 else DummyVecEnv)([make_env(seed + i, **env_kwargs) for i in range(n_envs)])
-        model = PPO("MlpPolicy", vec, n_steps=512, batch_size=512, n_epochs=10, gamma=0.98, gae_lambda=0.95,
+        model = PPO("MlpPolicy", vec, n_steps=512, batch_size=512, n_epochs=10, gamma=gamma, gae_lambda=0.95,
                     learning_rate=3e-4, clip_range=0.2, ent_coef=0.0, target_kl=0.05,
                     policy_kwargs=dict(net_arch=[128, 128], log_std_init=-1.0), seed=seed, verbose=0)
     else:
         n = min(n_envs, 4)
         vec = (SubprocVecEnv if n > 1 else DummyVecEnv)([make_env(seed + i, **env_kwargs) for i in range(n)])
-        model = SAC("MlpPolicy", vec, buffer_size=500_000, batch_size=256, learning_rate=3e-4, gamma=0.98,
+        model = SAC("MlpPolicy", vec, buffer_size=500_000, batch_size=256, learning_rate=3e-4, gamma=gamma,
                     tau=0.01, train_freq=1, gradient_steps=max(1, n // 2), learning_starts=5_000,
                     policy_kwargs=dict(net_arch=[128, 128]), seed=seed, verbose=0)
     curve = []
@@ -90,7 +96,7 @@ def train(name: str, out_dir: Path, steps: int | None = None, seed: int = 0, n_e
     model.save(out_dir / f"{stem}.zip")
     policy = export_policy(model, algo, env_kwargs)
     (out_dir / f"{stem}.json").write_text(json.dumps(policy))
-    meta = dict(name=name, algo=algo, env=env_kwargs, steps=steps, seed=seed, n_envs=n_envs,
+    meta = dict(name=name, algo=algo, env=env_kwargs, gamma=gamma, steps=steps, seed=seed, n_envs=n_envs,
                 wall_s=time.time() - t0, curve=curve)
     (out_dir / f"{stem}.train.json").write_text(json.dumps(meta))
     return meta

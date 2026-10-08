@@ -66,6 +66,25 @@ const key = (el, k) => el.dispatchEvent(new KeyboardEvent("keydown", {key: k, bu
     res.time = box.querySelector(".lab-tlabel").textContent;
     res.sandCaption = box.querySelector(".hud-caption").textContent;
     key(v, " ");
+    // test case 7: TOV sticks at 20 s; the fault shows in the narration, the badge and the time slider
+    box.querySelector('.re-chip[data-k="pi"]').click();
+    await sleep(200);
+    const tsel = [...box.querySelectorAll(".hud-panel[data-panel=fault] select")][0];
+    tsel.value = "tc7"; tsel.dispatchEvent(new Event("change"));
+    await sleep(1500);
+    res.marks = box.querySelectorAll(".lab-tmarks i").length;
+    const slider = box.querySelector(".lab-tslider");
+    slider.value = Math.round(22 / 0.05); slider.dispatchEvent(new Event("input"));
+    await sleep(200);
+    res.faultCaption = box.querySelector(".hud-caption").textContent;
+    res.faultChips = box.querySelectorAll(".fault-chip").length;
+    // the scoreboard: every controller through every test case, live
+    key(v, "t");
+    res.testsOpen = !box.querySelector(".hud-modal").hidden;
+    box.querySelector(".hud-modal .re-btn.re-primary").click();
+    for (let i = 0; i < 120 && box.querySelectorAll(".tests-table td:not(.empty)").length < 63; i++) await sleep(500);
+    res.cells = box.querySelectorAll(".tests-table tbody td:not(.empty)").length;
+    res.testsStatus = box.querySelector(".tests-status").textContent;
   } catch (e) { res.error = String(e.stack || e); }
   res.errors = window.__errors;
   document.getElementById("out").textContent = JSON.stringify(res);
@@ -88,7 +107,7 @@ def page(tmp_path_factory):
     try:
         url = f"http://127.0.0.1:{server.server_address[1]}/index.html"
         cmd = [CHROME, "--headless=new", "--no-sandbox", "--disable-gpu", "--window-size=1500,1000",
-               "--virtual-time-budget=30000", "--dump-dom", url]
+               "--virtual-time-budget=120000", "--dump-dom", url]
         html = subprocess.run(cmd, capture_output=True, text=True, timeout=300).stdout
     finally:
         server.shutdown()
@@ -104,7 +123,7 @@ def test_no_script_errors(page):
 
 def test_wide_screens_float_the_controls_and_phones_stack_them(page):
     assert page["modes"] == ["hud", "stack"]
-    assert page["counts"] == [4, 4, 5]  # panels; story, labels, acronyms, about; and full screen
+    assert page["counts"] == [5, 4, 6]  # panels; story, labels, acronyms, about; tests and full screen
 
 
 def test_episode_runs_and_is_narrated(page):
@@ -127,3 +146,14 @@ def test_sandbox_plays_and_takes_the_keyboard(page):
     assert float(page["time"].split("=")[1].split("s")[0]) > 0.5
     assert page["tfv"][1] == pytest.approx(page["tfv"][0] + 0.01)
     assert page["sandCaption"].strip()
+
+
+def test_a_fault_shows_up_where_it_happens(page):
+    assert page["marks"] == 1 and page["faultChips"] == 1
+    assert "Fault" in page["faultCaption"] or "TOV" in page["faultCaption"]
+
+
+def test_every_controller_runs_every_test_case(page):
+    # 9 controllers x 7 test cases, each one live episode, plus a mean column per controller
+    assert page["testsOpen"]
+    assert page["cells"] == 9 * 8, page["testsStatus"]

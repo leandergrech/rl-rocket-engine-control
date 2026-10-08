@@ -5,23 +5,26 @@ icon: re/surrogate
 # :re-surrogate: 4a. Baselines on the surrogate
 
 !!! warning "These are surrogate results, not DLR's simulator"
-    DLR's LUMEN Control Challenge simulator is not public ([§7.1](07-references.md#71-search-log-where-the-lumen-control-challenge-simulator-is-not)). Everything on this page runs on this repo's surrogate: a reduced expander-bleed engine calibrated to the gains, settling times and overshoot DLR publishes for its LUMEN model ([model card](primer/8-lab.md#model-card)). The page is a dry run of the baseline set [§4.8](04-designs.md#48-what-this-means-for-the-challenge) calls for. It tests the code, the metrics and the questions, not the numbers. Rankings may transfer to the real task; magnitudes will not.
+    DLR's LUMEN Control Challenge simulator is not public yet ([§7.1](07-references.md#71-search-log-where-the-lumen-control-challenge-simulator-is-not)). Everything on this page runs on this repo's surrogate: a reduced expander-bleed engine calibrated to the gains, settling times and overshoot DLR publishes for its LUMEN model ([model card](primer/8-lab.md#model-card)). The page is a dry run of the baseline set [§4.8](04-designs.md#48-what-this-means-for-the-challenge) calls for. It tests the code, the metrics and the questions, not the numbers. Rankings may transfer to the real task; magnitudes will not.
 
-!!! info "Two differences from the challenge, confirmed in October 2026"
-    The challenge runs at **20 Hz** and gives **no preview** of future set points ([organisers, Oct 2026](07-references.md#organisers2026)). This page runs at 10 Hz, the thesis's simulation setting. The rows *without preview* are the ones comparable to a challenge entry. The preview rows are an ablation: they show what anticipation is worth.
+!!! info "Since October 2026: 20 Hz and no preview, as in the challenge"
+    The challenge runs at **20 Hz** and gives **no preview** of future set points ([organisers, Oct 2026](07-references.md#organisers2026)). The baselines now do the same:
+    - the [results at 20 Hz](#results-20-hz) and the [seven test cases](#test-cases) are the ones comparable to a challenge entry;
+    - the PI can also be [designed for a bandwidth](#pi-bandwidth);
+    - the [earlier baselines](#earlier-10-hz) ran at 10 Hz, the thesis's simulation setting, with and without preview. They stay as an ablation of what preview is worth, and they still run in the Lab.
 
 !!! abstract "In short"
 
-    - **Every learned controller beats the decoupled PI on the nominal engine**: chamber-pressure error 0.5–1.2 % against 2.75 %, mixture-ratio error 0.26–0.46 % against 2.48 %, and no constraint violations against 15 violation steps per episode.
-    - **Reference preview halves the pressure error** and leaves mixture ratio unchanged: PPO 1.21 % → 0.52 %, reproduced with a second seed (1.07 % → 0.50 %); SAC 0.79 % → 0.54 %. The gain is in the transients, where the 0.3 s of valve and sensor delay would otherwise make the agent late.
-    - **The networks have no integral action, and it shows.** With a 5 % weaker LOX turbine, which no controller was trained on, PPO and SAC hold the mixture ratio about 3 % low at every set point, and their error on the evaluation profile rises to 5.7–5.8 %, twice the PI's 2.8 %. PI's integrator removes the offset. This is the failure the challenge's parametric test cases probe, and the reason DLR trains with domain randomisation.
-    - Each run fits the brief's one-hour CPU budget: PPO 3 M steps in 17–27 min, SAC 450–500 k steps in 50–55 min.
+    - **At 20 Hz without preview, the challenge's setting, PPO halves the PI's pressure error:** 1.04 % against 2.61 % for the reward-tuned PI, with no time over a limit against 1.4 s per episode. SAC, which reached only 170 k steps in its 55-minute budget on a shared CPU, is not converged (1.31 %) and chatters.
+    - **A PI designed for a bandwidth beats the reward-tuned one on pressure** (2.30 % against 2.61 %) but loses on mixture ratio (3.14 % against 2.27 %). The tuned gains run the mixture-ratio loop at about 18° of phase margin: aggressive, and it pays off on this noise level. Textbook SIMC tuning on each loop's first-order model would put the pressure loop at 0.72 Hz, which is far too fast here; the best bandwidth on the training episodes is 0.15 Hz.
+    - **No controller wins every test case.** The networks win nominal tracking (cases 1–2), by a factor of 2 to 7. When the engine changes, drifts or wears a bearing (cases 4–6), the bandwidth-designed PI holds pressure as well as or better than they do, while the networks lose the mixture ratio (3.7–7 %): they have no integral action. When TOV sticks (case 7), every controller loses the mixture ratio, and the PIs also lose pressure.
+    - **The earlier 10 Hz agents** keep their lesson: preview halves the pressure error (PPO 1.21 % → 0.52 %).
 
 ## Setup
 
 **Task.** The 2×2 task of [From physics to reward](primer/7-reward.md#this-repos-22-environment):
 
-- TFV and TOV commands every 0.1 s;
+- TFV and TOV commands every 0.05 s (20 Hz; the earlier baselines every 0.1 s);
 - 30 s episodes of random holds, steps and ramps in 35–50 bar and $R_{OF}$ 3.0–3.8;
 - DLR's exponential tracking reward ($\delta$ = 12), a 0.5 penalty per violated constraint (thesis Table 5.1) and a valve-travel penalty;
 - sensor delays of 0.1 s on chamber pressure and 0.2 s on mixture ratio, plus small measurement noise.
@@ -33,13 +36,3303 @@ The code is `src/rl_rocket_engine/surrogate/env.py`.
 | Controller | What it reads | How it was made |
 |---|---|---|
 | Feedforward only | the set point | valves from the trim table (the steady-state inverse of the engine); no measurement |
-| Decoupled PI | measured $p_{cc}$, $R_{OF}$, set point | feedforward plus two PI loops behind a static, gain-scheduled decoupler, with anti-windup ([equation](primer/equations.md#eq-pi)); four gains tuned by Nelder–Mead on 12 training episodes |
-| PPO, no preview / preview | 4 stacked frames of 15 / 23 normalised values; preview adds the next 0.5 s of set points | SB3 PPO, 2×128 tanh, 6 parallel environments, 3 M steps |
-| SAC, no preview / preview | same | SB3 SAC, 2×128 ReLU, 4 parallel environments, 500 k steps |
+| Decoupled PI, tuned | measured $p_{cc}$, $R_{OF}$, set point | feedforward plus two PI loops behind a static, gain-scheduled decoupler, with anti-windup ([equation](primer/equations.md#eq-pi)); four gains tuned by Nelder–Mead on 12 training episodes at 20 Hz |
+| Decoupled PI, bandwidth design | same | the same structure, gains from each loop's first-order-plus-dead-time model and a chosen bandwidth (SIMC; [equation](primer/equations.md#eq-pi-bandwidth)); here the bandwidths that scored best on the training episodes, 0.15 / 0.47 Hz |
+| PPO, SAC (20 Hz) | 4 stacked frames of 15 normalised values, no preview | SB3 PPO (2×128 tanh, 6 environments) and SAC (2×128 ReLU, 4 environments), $\gamma$ = 0.99, at most 55 min each |
+| Earlier: PPO, SAC (10 Hz), no preview / preview | 4 stacked frames of 15 / 23 values; preview adds the next 0.5 s of set points | the same networks at 0.1 s, $\gamma$ = 0.98; PPO 3 M steps, SAC 450–500 k steps |
 
 Every learned policy was trained on the nominal engine, in under an hour on a laptop CPU. The tables and charts show seed 0; PPO was also trained with a second seed ([below](#a-second-seed)). All controllers are evaluated deterministically on the same 20 held-out episodes (seeds 1000–1019) with `python scripts/evaluate.py`. The networks run in the [Engine Lab](primer/8-lab.md), in your browser, with the same arithmetic.
 
-## Results
+## Results at 20 Hz, no preview {#results-20-hz}
+
+<!-- BEGIN generated: results20 -->
+| Controller | MAPE $p_{cc}$ [%] | MAPE $R_{OF}$ [%] | Steps settled $p_{cc}$ / $R_{OF}$ | Settling $p_{cc}$ / $R_{OF}$ [s] | Valve travel | Over a limit [s] | Randomised MAPE $p_{cc}$ / $R_{OF}$ [%] | Training |
+|---|---|---|---|---|---|---|---|---|
+| Open-loop feedforward | 4.62 | 4.25 | 18 % / 46 % | 1.0 / 3.0 | 0.69 | 0.83 | 4.40 / 5.06 | – |
+| Decoupled PI, tuned | 2.61 | 2.27 | 61 % / 75 % | 3.7 / 3.6 | 3.63 | 1.42 | 2.28 / 1.83 | Nelder–Mead, 12 episodes |
+| Decoupled PI, bandwidth design | 2.30 | 3.14 | 54 % / 43 % | 3.1 / 4.0 | 3.25 | 1.91 | 2.01 / 2.63 | SIMC rules at 0.15 / 0.47 Hz |
+| PPO (20 Hz) | 1.04 | 0.82 | 96 % / 93 % | 1.0 / 1.3 | 3.72 | 0.00 | 1.16 / 2.07 | 2.7 M steps, 55 min |
+| SAC (20 Hz) | 1.31 | 1.23 | 96 % / 89 % | 1.3 / 4.8 | 65.99 | 0.00 | 1.59 / 2.45 | 170 k steps, 55 min |
+
+Mean over the same 20 held-out episodes as before (seeds 1000–1019). Settling: time to stay within ±2 % of a new set point after a step. Over a limit: seconds per episode with at least one constraint of thesis Table 5.1 broken (seconds, not steps, so the 10 and 20 Hz rows compare). Randomised: the same episodes with the engine and sensors drawn from DLR's ranges.
+{: .caption }
+
+```vegalite
+{
+ "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+ "title": {
+  "text": "Chamber-pressure error at 20 Hz, and the earlier 10 Hz agents",
+  "subtitle": "MAPE on 20 held-out episodes, log scale. Filled: nominal engine; hollow: domain-randomised (thesis Table A.3). Surrogate, not DLR's simulator; data/results/summary.json"
+ },
+ "width": "container",
+ "height": 300,
+ "data": {
+  "values": [
+   {
+    "controller": "Open-loop feedforward",
+    "rate": "20 Hz",
+    "condition": "nominal",
+    "mape_p": 4.62,
+    "mape_rof": 4.255
+   },
+   {
+    "controller": "Open-loop feedforward",
+    "rate": "20 Hz",
+    "condition": "randomised",
+    "mape_p": 4.402,
+    "mape_rof": 5.061
+   },
+   {
+    "controller": "Decoupled PI, tuned",
+    "rate": "20 Hz",
+    "condition": "nominal",
+    "mape_p": 2.609,
+    "mape_rof": 2.27
+   },
+   {
+    "controller": "Decoupled PI, tuned",
+    "rate": "20 Hz",
+    "condition": "randomised",
+    "mape_p": 2.279,
+    "mape_rof": 1.834
+   },
+   {
+    "controller": "Decoupled PI, bandwidth design",
+    "rate": "20 Hz",
+    "condition": "nominal",
+    "mape_p": 2.301,
+    "mape_rof": 3.143
+   },
+   {
+    "controller": "Decoupled PI, bandwidth design",
+    "rate": "20 Hz",
+    "condition": "randomised",
+    "mape_p": 2.009,
+    "mape_rof": 2.628
+   },
+   {
+    "controller": "PPO (20 Hz)",
+    "rate": "20 Hz",
+    "condition": "nominal",
+    "mape_p": 1.041,
+    "mape_rof": 0.82
+   },
+   {
+    "controller": "PPO (20 Hz)",
+    "rate": "20 Hz",
+    "condition": "randomised",
+    "mape_p": 1.162,
+    "mape_rof": 2.073
+   },
+   {
+    "controller": "SAC (20 Hz)",
+    "rate": "20 Hz",
+    "condition": "nominal",
+    "mape_p": 1.311,
+    "mape_rof": 1.231
+   },
+   {
+    "controller": "SAC (20 Hz)",
+    "rate": "20 Hz",
+    "condition": "randomised",
+    "mape_p": 1.593,
+    "mape_rof": 2.446
+   },
+   {
+    "controller": "PPO, preview (10 Hz)",
+    "rate": "10 Hz (earlier)",
+    "condition": "nominal",
+    "mape_p": 0.525,
+    "mape_rof": 0.333
+   },
+   {
+    "controller": "PPO, preview (10 Hz)",
+    "rate": "10 Hz (earlier)",
+    "condition": "randomised",
+    "mape_p": 0.922,
+    "mape_rof": 1.903
+   },
+   {
+    "controller": "PPO, no preview (10 Hz)",
+    "rate": "10 Hz (earlier)",
+    "condition": "nominal",
+    "mape_p": 1.21,
+    "mape_rof": 0.366
+   },
+   {
+    "controller": "PPO, no preview (10 Hz)",
+    "rate": "10 Hz (earlier)",
+    "condition": "randomised",
+    "mape_p": 1.097,
+    "mape_rof": 1.609
+   },
+   {
+    "controller": "SAC, preview (10 Hz)",
+    "rate": "10 Hz (earlier)",
+    "condition": "nominal",
+    "mape_p": 0.542,
+    "mape_rof": 0.261
+   },
+   {
+    "controller": "SAC, preview (10 Hz)",
+    "rate": "10 Hz (earlier)",
+    "condition": "randomised",
+    "mape_p": 0.886,
+    "mape_rof": 1.883
+   },
+   {
+    "controller": "SAC, no preview (10 Hz)",
+    "rate": "10 Hz (earlier)",
+    "condition": "nominal",
+    "mape_p": 0.792,
+    "mape_rof": 0.312
+   },
+   {
+    "controller": "SAC, no preview (10 Hz)",
+    "rate": "10 Hz (earlier)",
+    "condition": "randomised",
+    "mape_p": 1.136,
+    "mape_rof": 1.881
+   }
+  ]
+ },
+ "encoding": {
+  "y": {
+   "field": "controller",
+   "type": "nominal",
+   "sort": null,
+   "title": null,
+   "axis": {
+    "labelLimit": 240
+   }
+  },
+  "x": {
+   "field": "mape_p",
+   "type": "quantitative",
+   "scale": {
+    "type": "log",
+    "domain": [
+     0.2,
+     10
+    ]
+   },
+   "title": "MAPE p_cc (%), log scale"
+  },
+  "color": {
+   "field": "rate",
+   "type": "nominal",
+   "scale": {
+    "domain": [
+     "20 Hz",
+     "10 Hz (earlier)"
+    ],
+    "range": [
+     "var(--viz-s1)",
+     "var(--viz-muted)"
+    ]
+   },
+   "legend": {
+    "title": null
+   }
+  },
+  "tooltip": [
+   {
+    "field": "controller"
+   },
+   {
+    "field": "condition"
+   },
+   {
+    "field": "mape_p",
+    "title": "MAPE p_cc (%)"
+   },
+   {
+    "field": "mape_rof",
+    "title": "MAPE ROF (%)"
+   }
+  ]
+ },
+ "layer": [
+  {
+   "transform": [
+    {
+     "pivot": "condition",
+     "value": "mape_p",
+     "groupby": [
+      "controller",
+      "rate"
+     ]
+    }
+   ],
+   "mark": {
+    "type": "rule",
+    "strokeWidth": 2,
+    "color": "var(--viz-axis)"
+   },
+   "encoding": {
+    "x": {
+     "field": "nominal",
+     "type": "quantitative"
+    },
+    "x2": {
+     "field": "randomised"
+    },
+    "color": {
+     "value": "var(--viz-axis)"
+    }
+   }
+  },
+  {
+   "transform": [
+    {
+     "filter": "datum.condition == 'nominal'"
+    }
+   ],
+   "mark": {
+    "type": "point",
+    "filled": true,
+    "size": 110,
+    "stroke": "var(--md-default-bg-color)",
+    "strokeWidth": 2
+   }
+  },
+  {
+   "transform": [
+    {
+     "filter": "datum.condition == 'randomised'"
+    }
+   ],
+   "mark": {
+    "type": "point",
+    "filled": false,
+    "size": 110,
+    "strokeWidth": 2
+   }
+  }
+ ]
+}
+```
+<!-- END generated: results20 -->
+
+<!-- BEGIN generated: curves20 -->
+```vegalite
+{
+ "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+ "title": {
+  "text": "Learning at 20 Hz, against the wall clock",
+  "subtitle": "Training episode return (30 s, 600 steps), smoothed; laptop CPU. Surrogate, not DLR's simulator; data/policies/{ppo,sac}.train.json"
+ },
+ "width": "container",
+ "height": 220,
+ "data": {
+  "values": [
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 0.12,
+    "steps": 3600,
+    "ret": -500.2
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 0.24,
+    "steps": 14400,
+    "ret": -673.6
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 0.41,
+    "steps": 28800,
+    "ret": -654.9
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 0.58,
+    "steps": 43200,
+    "ret": -622.5
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 0.71,
+    "steps": 54000,
+    "ret": -609.7
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 0.87,
+    "steps": 68400,
+    "ret": -579.0
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 1.02,
+    "steps": 82800,
+    "ret": -553.2
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 1.13,
+    "steps": 93600,
+    "ret": -576.9
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 1.3,
+    "steps": 108000,
+    "ret": -586.2
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 1.46,
+    "steps": 122400,
+    "ret": -518.2
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 1.59,
+    "steps": 133200,
+    "ret": -472.1
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 1.73,
+    "steps": 147600,
+    "ret": -395.6
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 1.88,
+    "steps": 162000,
+    "ret": -363.6
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 1.99,
+    "steps": 172800,
+    "ret": -331.4
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 2.13,
+    "steps": 187200,
+    "ret": -309.3
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 2.3,
+    "steps": 201600,
+    "ret": -291.4
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 2.42,
+    "steps": 212400,
+    "ret": -267.3
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 2.57,
+    "steps": 226800,
+    "ret": -240.8
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 2.71,
+    "steps": 241200,
+    "ret": -240.1
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 2.83,
+    "steps": 252000,
+    "ret": -226.6
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 2.97,
+    "steps": 266400,
+    "ret": -212.4
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 3.13,
+    "steps": 280800,
+    "ret": -200.8
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 3.25,
+    "steps": 291600,
+    "ret": -200.1
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 3.41,
+    "steps": 306000,
+    "ret": -213.6
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 3.58,
+    "steps": 320400,
+    "ret": -222.2
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 3.7,
+    "steps": 331200,
+    "ret": -221.1
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 3.86,
+    "steps": 345600,
+    "ret": -207.4
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 4.03,
+    "steps": 360000,
+    "ret": -188.3
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 4.15,
+    "steps": 370800,
+    "ret": -173.5
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 4.33,
+    "steps": 385200,
+    "ret": -173.7
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 4.49,
+    "steps": 399600,
+    "ret": -184.4
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 4.61,
+    "steps": 410400,
+    "ret": -184.1
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 4.79,
+    "steps": 424800,
+    "ret": -176.8
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 4.95,
+    "steps": 439200,
+    "ret": -178.5
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 5.08,
+    "steps": 450000,
+    "ret": -156.8
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 5.25,
+    "steps": 464400,
+    "ret": -176.6
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 5.42,
+    "steps": 478800,
+    "ret": -179.1
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 5.57,
+    "steps": 489600,
+    "ret": -176.6
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 5.74,
+    "steps": 504000,
+    "ret": -172.7
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 5.89,
+    "steps": 518400,
+    "ret": -152.5
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 6.03,
+    "steps": 529200,
+    "ret": -154.2
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 6.19,
+    "steps": 543600,
+    "ret": -148.1
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 6.37,
+    "steps": 558000,
+    "ret": -157.1
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 6.51,
+    "steps": 568800,
+    "ret": -146.8
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 6.66,
+    "steps": 583200,
+    "ret": -137.7
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 6.83,
+    "steps": 597600,
+    "ret": -139.7
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 6.95,
+    "steps": 608400,
+    "ret": -147.0
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 7.12,
+    "steps": 622800,
+    "ret": -147.7
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 7.3,
+    "steps": 637200,
+    "ret": -160.5
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 7.41,
+    "steps": 648000,
+    "ret": -151.1
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 7.58,
+    "steps": 662400,
+    "ret": -138.7
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 7.75,
+    "steps": 676800,
+    "ret": -130.4
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 7.86,
+    "steps": 687600,
+    "ret": -117.1
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 8.03,
+    "steps": 702000,
+    "ret": -120.9
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 8.19,
+    "steps": 716400,
+    "ret": -118.5
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 8.32,
+    "steps": 727200,
+    "ret": -125.5
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 8.48,
+    "steps": 741600,
+    "ret": -122.8
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 8.64,
+    "steps": 756000,
+    "ret": -127.2
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 8.75,
+    "steps": 766800,
+    "ret": -124.4
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 8.9,
+    "steps": 781200,
+    "ret": -123.2
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 9.05,
+    "steps": 795600,
+    "ret": -123.2
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 9.18,
+    "steps": 806400,
+    "ret": -134.1
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 9.34,
+    "steps": 820800,
+    "ret": -135.9
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 9.5,
+    "steps": 835200,
+    "ret": -147.5
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 9.62,
+    "steps": 846000,
+    "ret": -158.8
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 9.8,
+    "steps": 860400,
+    "ret": -144.1
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 9.98,
+    "steps": 874800,
+    "ret": -152.2
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 10.19,
+    "steps": 885600,
+    "ret": -137.5
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 10.54,
+    "steps": 900000,
+    "ret": -122.8
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 10.88,
+    "steps": 914400,
+    "ret": -119.2
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 11.17,
+    "steps": 925200,
+    "ret": -104.6
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 11.42,
+    "steps": 939600,
+    "ret": -105.3
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 11.71,
+    "steps": 954000,
+    "ret": -124.7
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 11.97,
+    "steps": 964800,
+    "ret": -121.2
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 12.26,
+    "steps": 979200,
+    "ret": -129.3
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 12.58,
+    "steps": 993600,
+    "ret": -135.5
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 12.79,
+    "steps": 1004400,
+    "ret": -122.1
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 13.09,
+    "steps": 1018800,
+    "ret": -137.2
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 13.39,
+    "steps": 1033200,
+    "ret": -121.8
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 13.6,
+    "steps": 1044000,
+    "ret": -112.8
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 13.88,
+    "steps": 1058400,
+    "ret": -99.9
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 14.17,
+    "steps": 1072800,
+    "ret": -81.7
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 14.38,
+    "steps": 1083600,
+    "ret": -89.5
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 14.66,
+    "steps": 1098000,
+    "ret": -92.7
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 14.94,
+    "steps": 1112400,
+    "ret": -99.2
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 15.14,
+    "steps": 1123200,
+    "ret": -113.1
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 15.42,
+    "steps": 1137600,
+    "ret": -118.6
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 15.66,
+    "steps": 1152000,
+    "ret": -121.5
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 16.05,
+    "steps": 1162800,
+    "ret": -126.2
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 16.49,
+    "steps": 1177200,
+    "ret": -122.2
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 16.63,
+    "steps": 1191600,
+    "ret": -121.8
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 16.75,
+    "steps": 1202400,
+    "ret": -128.0
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 16.92,
+    "steps": 1216800,
+    "ret": -117.9
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 17.06,
+    "steps": 1231200,
+    "ret": -114.0
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 17.18,
+    "steps": 1242000,
+    "ret": -123.7
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 17.32,
+    "steps": 1256400,
+    "ret": -116.0
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 17.47,
+    "steps": 1270800,
+    "ret": -118.3
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 17.57,
+    "steps": 1281600,
+    "ret": -129.5
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 17.71,
+    "steps": 1296000,
+    "ret": -132.5
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 17.86,
+    "steps": 1310400,
+    "ret": -129.5
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 17.98,
+    "steps": 1321200,
+    "ret": -133.6
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 18.13,
+    "steps": 1335600,
+    "ret": -118.5
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 18.28,
+    "steps": 1350000,
+    "ret": -97.1
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 18.39,
+    "steps": 1360800,
+    "ret": -102.5
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 18.53,
+    "steps": 1375200,
+    "ret": -97.0
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 18.68,
+    "steps": 1389600,
+    "ret": -109.5
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 18.79,
+    "steps": 1400400,
+    "ret": -128.4
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 18.94,
+    "steps": 1414800,
+    "ret": -119.5
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 19.08,
+    "steps": 1429200,
+    "ret": -122.6
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 19.18,
+    "steps": 1440000,
+    "ret": -109.2
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 19.34,
+    "steps": 1454400,
+    "ret": -102.6
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 19.49,
+    "steps": 1468800,
+    "ret": -101.6
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 19.6,
+    "steps": 1479600,
+    "ret": -97.4
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 19.75,
+    "steps": 1494000,
+    "ret": -111.7
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 19.89,
+    "steps": 1508400,
+    "ret": -99.5
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 20.01,
+    "steps": 1519200,
+    "ret": -108.1
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 20.16,
+    "steps": 1533600,
+    "ret": -109.1
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 20.31,
+    "steps": 1548000,
+    "ret": -99.0
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 20.43,
+    "steps": 1558800,
+    "ret": -101.2
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 20.59,
+    "steps": 1573200,
+    "ret": -101.9
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 20.73,
+    "steps": 1587600,
+    "ret": -108.6
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 20.86,
+    "steps": 1598400,
+    "ret": -104.2
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 21.02,
+    "steps": 1612800,
+    "ret": -108.0
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 21.18,
+    "steps": 1627200,
+    "ret": -102.7
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 21.3,
+    "steps": 1638000,
+    "ret": -101.6
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 21.44,
+    "steps": 1652400,
+    "ret": -103.3
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 21.6,
+    "steps": 1666800,
+    "ret": -102.1
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 21.71,
+    "steps": 1677600,
+    "ret": -103.3
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 21.85,
+    "steps": 1692000,
+    "ret": -97.6
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 21.99,
+    "steps": 1706400,
+    "ret": -99.8
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 22.1,
+    "steps": 1717200,
+    "ret": -96.0
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 22.25,
+    "steps": 1731600,
+    "ret": -97.9
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 22.39,
+    "steps": 1746000,
+    "ret": -105.3
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 22.5,
+    "steps": 1756800,
+    "ret": -104.7
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 22.66,
+    "steps": 1771200,
+    "ret": -108.5
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 22.81,
+    "steps": 1785600,
+    "ret": -102.7
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 22.92,
+    "steps": 1796400,
+    "ret": -94.7
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 23.08,
+    "steps": 1810800,
+    "ret": -97.7
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 23.23,
+    "steps": 1825200,
+    "ret": -107.8
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 23.35,
+    "steps": 1836000,
+    "ret": -112.1
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 23.52,
+    "steps": 1850400,
+    "ret": -124.4
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 23.68,
+    "steps": 1864800,
+    "ret": -124.9
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 23.8,
+    "steps": 1875600,
+    "ret": -113.7
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 23.96,
+    "steps": 1890000,
+    "ret": -124.2
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 24.1,
+    "steps": 1904400,
+    "ret": -112.8
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 24.22,
+    "steps": 1915200,
+    "ret": -126.3
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 24.39,
+    "steps": 1929600,
+    "ret": -130.1
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 24.55,
+    "steps": 1944000,
+    "ret": -128.6
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 24.67,
+    "steps": 1954800,
+    "ret": -138.0
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 24.83,
+    "steps": 1969200,
+    "ret": -120.8
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 24.98,
+    "steps": 1983600,
+    "ret": -124.5
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 25.1,
+    "steps": 1994400,
+    "ret": -133.0
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 25.26,
+    "steps": 2008800,
+    "ret": -128.8
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 25.42,
+    "steps": 2023200,
+    "ret": -138.2
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 25.55,
+    "steps": 2034000,
+    "ret": -132.7
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 25.71,
+    "steps": 2048400,
+    "ret": -119.8
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 25.87,
+    "steps": 2062800,
+    "ret": -121.2
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 25.98,
+    "steps": 2073600,
+    "ret": -115.8
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 26.14,
+    "steps": 2088000,
+    "ret": -116.0
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 26.31,
+    "steps": 2102400,
+    "ret": -110.6
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 26.44,
+    "steps": 2113200,
+    "ret": -117.5
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 26.61,
+    "steps": 2127600,
+    "ret": -124.5
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 26.79,
+    "steps": 2142000,
+    "ret": -122.5
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 26.91,
+    "steps": 2152800,
+    "ret": -126.3
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 27.08,
+    "steps": 2167200,
+    "ret": -113.5
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 27.26,
+    "steps": 2181600,
+    "ret": -104.7
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 27.37,
+    "steps": 2192400,
+    "ret": -114.6
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 27.52,
+    "steps": 2206800,
+    "ret": -107.0
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 27.68,
+    "steps": 2221200,
+    "ret": -110.0
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 27.78,
+    "steps": 2232000,
+    "ret": -103.0
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 27.93,
+    "steps": 2246400,
+    "ret": -85.3
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 28.08,
+    "steps": 2260800,
+    "ret": -90.1
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 28.24,
+    "steps": 2271600,
+    "ret": -99.7
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 29.15,
+    "steps": 2286000,
+    "ret": -96.3
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 30.01,
+    "steps": 2300400,
+    "ret": -105.8
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 30.57,
+    "steps": 2311200,
+    "ret": -99.2
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 31.33,
+    "steps": 2325600,
+    "ret": -87.2
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 32.07,
+    "steps": 2340000,
+    "ret": -99.4
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 32.84,
+    "steps": 2350800,
+    "ret": -91.0
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 33.71,
+    "steps": 2365200,
+    "ret": -103.5
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 34.76,
+    "steps": 2379600,
+    "ret": -109.1
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 35.27,
+    "steps": 2390400,
+    "ret": -105.7
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 35.56,
+    "steps": 2404800,
+    "ret": -116.1
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 36.19,
+    "steps": 2419200,
+    "ret": -121.9
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 36.99,
+    "steps": 2430000,
+    "ret": -116.3
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 37.98,
+    "steps": 2444400,
+    "ret": -111.4
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 39.03,
+    "steps": 2458800,
+    "ret": -114.0
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 39.73,
+    "steps": 2469600,
+    "ret": -100.9
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 40.97,
+    "steps": 2484000,
+    "ret": -93.9
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 42.04,
+    "steps": 2498400,
+    "ret": -93.1
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 42.77,
+    "steps": 2509200,
+    "ret": -90.5
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 43.85,
+    "steps": 2523600,
+    "ret": -91.1
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 44.39,
+    "steps": 2538000,
+    "ret": -101.2
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 45.09,
+    "steps": 2548800,
+    "ret": -114.4
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 46.16,
+    "steps": 2563200,
+    "ret": -108.4
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 47.29,
+    "steps": 2577600,
+    "ret": -100.5
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 48.02,
+    "steps": 2588400,
+    "ret": -100.0
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 49.05,
+    "steps": 2602800,
+    "ret": -90.3
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 50.03,
+    "steps": 2617200,
+    "ret": -103.1
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 50.75,
+    "steps": 2628000,
+    "ret": -121.3
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 51.71,
+    "steps": 2642400,
+    "ret": -128.4
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 52.47,
+    "steps": 2656800,
+    "ret": -132.3
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 52.66,
+    "steps": 2667600,
+    "ret": -117.6
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 53.36,
+    "steps": 2682000,
+    "ret": -109.5
+   },
+   {
+    "agent": "PPO (20 Hz)",
+    "minutes": 54.28,
+    "steps": 2696400,
+    "ret": -98.9
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 0.31,
+    "steps": 2400,
+    "ret": -707.0
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 0.31,
+    "steps": 2400,
+    "ret": -817.3
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 0.35,
+    "steps": 4800,
+    "ret": -873.2
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 0.35,
+    "steps": 4800,
+    "ret": -897.3
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 1.33,
+    "steps": 7200,
+    "ret": -923.6
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 1.33,
+    "steps": 7200,
+    "ret": -861.2
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 2.24,
+    "steps": 9600,
+    "ret": -813.7
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 2.24,
+    "steps": 9600,
+    "ret": -752.9
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 3.24,
+    "steps": 12000,
+    "ret": -684.2
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 3.24,
+    "steps": 12000,
+    "ret": -665.7
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 4.25,
+    "steps": 14400,
+    "ret": -625.5
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 4.25,
+    "steps": 14400,
+    "ret": -574.8
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 5.23,
+    "steps": 16800,
+    "ret": -523.4
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 5.23,
+    "steps": 16800,
+    "ret": -473.9
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 6.03,
+    "steps": 19200,
+    "ret": -439.6
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 6.03,
+    "steps": 19200,
+    "ret": -408.6
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 6.91,
+    "steps": 21600,
+    "ret": -403.3
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 6.91,
+    "steps": 21600,
+    "ret": -380.3
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 7.97,
+    "steps": 24000,
+    "ret": -353.1
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 7.97,
+    "steps": 24000,
+    "ret": -332.8
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 8.93,
+    "steps": 26400,
+    "ret": -316.4
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 8.93,
+    "steps": 26400,
+    "ret": -308.7
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 10.05,
+    "steps": 28800,
+    "ret": -304.1
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 10.05,
+    "steps": 28800,
+    "ret": -291.0
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 11.1,
+    "steps": 31200,
+    "ret": -290.4
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 11.1,
+    "steps": 31200,
+    "ret": -280.1
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 12.29,
+    "steps": 33600,
+    "ret": -281.0
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 12.29,
+    "steps": 33600,
+    "ret": -266.8
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 13.47,
+    "steps": 36000,
+    "ret": -271.8
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 13.47,
+    "steps": 36000,
+    "ret": -266.8
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 14.53,
+    "steps": 38400,
+    "ret": -258.7
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 14.53,
+    "steps": 38400,
+    "ret": -251.0
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 15.86,
+    "steps": 40800,
+    "ret": -254.0
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 15.86,
+    "steps": 40800,
+    "ret": -253.5
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 17.05,
+    "steps": 43200,
+    "ret": -263.6
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 17.05,
+    "steps": 43200,
+    "ret": -255.1
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 18.06,
+    "steps": 45600,
+    "ret": -248.0
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 18.06,
+    "steps": 45600,
+    "ret": -253.0
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 19.08,
+    "steps": 48000,
+    "ret": -246.7
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 19.08,
+    "steps": 48000,
+    "ret": -240.8
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 20.01,
+    "steps": 50400,
+    "ret": -238.5
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 20.01,
+    "steps": 50400,
+    "ret": -234.2
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 21.0,
+    "steps": 52800,
+    "ret": -246.7
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 21.0,
+    "steps": 52800,
+    "ret": -240.7
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 21.88,
+    "steps": 55200,
+    "ret": -240.1
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 21.88,
+    "steps": 55200,
+    "ret": -238.6
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 22.9,
+    "steps": 57600,
+    "ret": -242.4
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 22.9,
+    "steps": 57600,
+    "ret": -241.7
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 23.86,
+    "steps": 60000,
+    "ret": -248.2
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 23.86,
+    "steps": 60000,
+    "ret": -253.4
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 24.76,
+    "steps": 62400,
+    "ret": -255.0
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 24.76,
+    "steps": 62400,
+    "ret": -237.3
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 25.68,
+    "steps": 64800,
+    "ret": -221.2
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 25.68,
+    "steps": 64800,
+    "ret": -223.3
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 26.59,
+    "steps": 67200,
+    "ret": -222.2
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 26.59,
+    "steps": 67200,
+    "ret": -229.4
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 27.5,
+    "steps": 69600,
+    "ret": -229.7
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 27.5,
+    "steps": 69600,
+    "ret": -238.3
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 28.39,
+    "steps": 72000,
+    "ret": -231.5
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 28.39,
+    "steps": 72000,
+    "ret": -229.5
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 29.3,
+    "steps": 74400,
+    "ret": -221.6
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 29.3,
+    "steps": 74400,
+    "ret": -214.1
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 30.27,
+    "steps": 76800,
+    "ret": -211.8
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 30.27,
+    "steps": 76800,
+    "ret": -213.8
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 31.23,
+    "steps": 79200,
+    "ret": -221.5
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 31.23,
+    "steps": 79200,
+    "ret": -223.5
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 32.21,
+    "steps": 81600,
+    "ret": -229.1
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 32.21,
+    "steps": 81600,
+    "ret": -220.5
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 33.16,
+    "steps": 84000,
+    "ret": -216.2
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 33.16,
+    "steps": 84000,
+    "ret": -206.9
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 34.19,
+    "steps": 86400,
+    "ret": -205.7
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 34.19,
+    "steps": 86400,
+    "ret": -214.7
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 35.1,
+    "steps": 88800,
+    "ret": -217.6
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 35.1,
+    "steps": 88800,
+    "ret": -215.6
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 35.96,
+    "steps": 91200,
+    "ret": -211.3
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 35.96,
+    "steps": 91200,
+    "ret": -209.2
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 36.79,
+    "steps": 93600,
+    "ret": -204.3
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 36.79,
+    "steps": 93600,
+    "ret": -205.8
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 37.65,
+    "steps": 96000,
+    "ret": -201.4
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 37.65,
+    "steps": 96000,
+    "ret": -201.0
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 38.5,
+    "steps": 98400,
+    "ret": -205.6
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 38.5,
+    "steps": 98400,
+    "ret": -208.2
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 39.28,
+    "steps": 100800,
+    "ret": -217.0
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 39.28,
+    "steps": 100800,
+    "ret": -225.9
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 40.1,
+    "steps": 103200,
+    "ret": -218.2
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 40.1,
+    "steps": 103200,
+    "ret": -219.2
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 40.94,
+    "steps": 105600,
+    "ret": -222.6
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 40.94,
+    "steps": 105600,
+    "ret": -228.8
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 41.87,
+    "steps": 108000,
+    "ret": -225.1
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 41.87,
+    "steps": 108000,
+    "ret": -221.1
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 42.76,
+    "steps": 110400,
+    "ret": -220.2
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 42.76,
+    "steps": 110400,
+    "ret": -223.0
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 43.64,
+    "steps": 112800,
+    "ret": -218.1
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 43.64,
+    "steps": 112800,
+    "ret": -221.6
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 44.5,
+    "steps": 115200,
+    "ret": -220.3
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 44.5,
+    "steps": 115200,
+    "ret": -209.4
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 45.27,
+    "steps": 117600,
+    "ret": -207.7
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 45.27,
+    "steps": 117600,
+    "ret": -212.3
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 45.87,
+    "steps": 120000,
+    "ret": -205.4
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 45.87,
+    "steps": 120000,
+    "ret": -212.6
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 46.32,
+    "steps": 122400,
+    "ret": -206.9
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 46.32,
+    "steps": 122400,
+    "ret": -208.0
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 46.73,
+    "steps": 124800,
+    "ret": -202.4
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 46.73,
+    "steps": 124800,
+    "ret": -195.8
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 47.18,
+    "steps": 127200,
+    "ret": -190.2
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 47.18,
+    "steps": 127200,
+    "ret": -196.1
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 47.63,
+    "steps": 129600,
+    "ret": -203.4
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 47.63,
+    "steps": 129600,
+    "ret": -206.0
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 48.05,
+    "steps": 132000,
+    "ret": -206.3
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 48.05,
+    "steps": 132000,
+    "ret": -205.1
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 48.51,
+    "steps": 134400,
+    "ret": -204.1
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 48.51,
+    "steps": 134400,
+    "ret": -198.6
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 48.97,
+    "steps": 136800,
+    "ret": -201.2
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 48.97,
+    "steps": 136800,
+    "ret": -197.6
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 49.43,
+    "steps": 139200,
+    "ret": -193.2
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 49.43,
+    "steps": 139200,
+    "ret": -200.7
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 49.89,
+    "steps": 141600,
+    "ret": -200.0
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 49.89,
+    "steps": 141600,
+    "ret": -193.7
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 50.36,
+    "steps": 144000,
+    "ret": -189.8
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 50.36,
+    "steps": 144000,
+    "ret": -188.3
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 50.8,
+    "steps": 146400,
+    "ret": -192.5
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 50.8,
+    "steps": 146400,
+    "ret": -193.9
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 51.25,
+    "steps": 148800,
+    "ret": -196.7
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 51.25,
+    "steps": 148800,
+    "ret": -200.5
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 51.7,
+    "steps": 151200,
+    "ret": -194.8
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 51.7,
+    "steps": 151200,
+    "ret": -195.9
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 52.1,
+    "steps": 153600,
+    "ret": -192.3
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 52.1,
+    "steps": 153600,
+    "ret": -191.0
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 52.53,
+    "steps": 156000,
+    "ret": -177.6
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 52.53,
+    "steps": 156000,
+    "ret": -184.0
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 52.94,
+    "steps": 158400,
+    "ret": -187.4
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 52.94,
+    "steps": 158400,
+    "ret": -201.3
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 53.38,
+    "steps": 160800,
+    "ret": -198.7
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 53.38,
+    "steps": 160800,
+    "ret": -198.8
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 53.79,
+    "steps": 163200,
+    "ret": -197.1
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 53.79,
+    "steps": 163200,
+    "ret": -198.4
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 54.22,
+    "steps": 165600,
+    "ret": -192.1
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 54.22,
+    "steps": 165600,
+    "ret": -189.6
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 54.64,
+    "steps": 168000,
+    "ret": -186.4
+   },
+   {
+    "agent": "SAC (20 Hz)",
+    "minutes": 54.64,
+    "steps": 168000,
+    "ret": -191.1
+   }
+  ]
+ },
+ "mark": {
+  "type": "line",
+  "strokeWidth": 2,
+  "interpolate": "monotone"
+ },
+ "encoding": {
+  "x": {
+   "field": "minutes",
+   "type": "quantitative",
+   "title": "wall-clock minutes"
+  },
+  "y": {
+   "field": "ret",
+   "type": "quantitative",
+   "title": "episode return",
+   "scale": {
+    "zero": false
+   }
+  },
+  "color": {
+   "field": "agent",
+   "type": "nominal",
+   "scale": {
+    "range": [
+     "var(--viz-s1)",
+     "var(--viz-s2)"
+    ]
+   },
+   "legend": {
+    "title": null
+   }
+  },
+  "tooltip": [
+   {
+    "field": "agent"
+   },
+   {
+    "field": "minutes"
+   },
+   {
+    "field": "steps",
+    "title": "environment steps"
+   },
+   {
+    "field": "ret",
+    "title": "return"
+   }
+  ]
+ }
+}
+```
+<!-- END generated: curves20 -->
+
+1. **PPO at 20 Hz is about as good as PPO at 10 Hz without preview** on pressure (1.04 % against 1.21 %), worse on mixture ratio (0.82 % against 0.37 %), and nowhere near the preview agents. Twice the control rate does not buy what anticipation buys. It does cost training: in its 55 minutes PPO at 20 Hz saw 2.7 M steps, 37 h of engine time, while the 10 Hz PPO saw 3 M steps, 83 h, in 17–27 min on an idle CPU.
+2. **SAC at 20 Hz is not a fair SAC result.** It shared the CPU with other jobs and reached 170 k steps, about a third of the 10 Hz run, and its learning curve is still rising. Its valve travel, 66 per episode against PPO's 3.7, shows a policy that has not learned to sit still. It needs a longer budget, or a faster simulator; the challenge's runs at real time make the same point ([§5.4](05-limitations.md#54-data-minutes-of-reality-days-of-simulation)).
+3. **Both PIs violate constraints that no learned controller touches**: 1.4–1.9 s per 30 s episode over a limit, mostly the cooling-channel pressure at low set points and mixture-ratio overshoot.
+
+## The seven test cases {#test-cases}
+
+The challenge's seven test cases ([§1.3](01-problem.md#13-the-seven-test-cases-as-rl-problem-classes)) in miniature, one episode each. The engine changes, faults, onsets and sizes are this site's choices ([scenarios.json](https://github.com/leandergrech/rl-rocket-engine-control/blob/main/src/rl_rocket_engine/surrogate/scenarios.json)). The [Engine Lab](primer/8-lab.md) runs the same matrix live: open the *Tests* card, or a single case such as [test case 7 under PPO](primer/8-lab.md?preset=ppo&test=tc7&t=19&play=1).
+
+<!-- BEGIN generated: scenarios -->
+| Controller | 1. Nominal, known reference | 2. Nominal, unknown reference | 3. Engine varies, distribution known | 4. Engine changed, nothing known | 5. Slow drift (ageing) | 6. Fault, with a detection signal | 7. Fault, no detection signal |
+|---|---|---|---|---|---|---|---|
+| Open-loop feedforward | 4.71 / 4.49 · 3.6 s | 5.22 / 4.61 · 2.4 s | 5.45 / 5.74 · 7.6 s | 5.58 / 6.47 · 6.5 s | 6.84 / 5.42 · 9.6 s | 9.31 / 12.85 · 25.2 s | 5.11 / 18.35 · 14.8 s |
+| Decoupled PI, tuned | 2.79 / 2.83 · 2.0 s | 2.41 / 1.98 · 0.6 s | 3.31 / 3.42 · 2.0 s | 3.39 / 3.44 · 2.2 s | 3.78 / 2.64 · 4.4 s | 3.62 / 4.09 · 3.7 s | 7.40 / 12.58 · 11.9 s |
+| Decoupled PI, bandwidth design | 2.28 / 3.25 · 2.0 s | 1.83 / 2.71 · 0.5 s | 2.66 / 3.77 · 2.4 s | 2.69 / 3.96 · 3.4 s | **2.78 / 3.65 · 4.0 s** | **2.53 / 3.63 · 2.9 s** | 5.85 / 12.76 · 12.0 s |
+| PPO (20 Hz) | 1.27 / 0.87 | 0.64 / 0.61 | 2.03 / 1.13 | 3.43 / 7.24 | 3.58 / 5.35 · 1.7 s | 3.08 / 5.22 · 2.0 s | 3.51 / 13.10 · 12.3 s |
+| SAC (20 Hz) | 1.58 / 1.36 | 0.98 / 1.08 | 2.20 / 1.72 | 3.63 / 6.56 · 0.1 s | 3.82 / 4.87 · 1.1 s | 3.07 / 4.81 · 1.9 s | 3.16 / 15.74 · 12.5 s |
+| PPO, preview (10 Hz) | **0.63 / 0.36** | 0.29 / 0.28 | 1.86 / 0.57 | 3.13 / 6.74 | 3.56 / 5.10 · 2.0 s | 3.76 / 3.68 · 2.8 s | **2.75 / 14.07 · 12.8 s** |
+| PPO, no preview (10 Hz) | 1.43 / 0.37 | 0.78 / 0.27 | 2.03 / 0.57 | **2.64 / 5.52** | 2.99 / 4.05 | 3.76 / 4.01 · 2.2 s | 3.42 / 13.43 · 12.2 s |
+| SAC, preview (10 Hz) | 0.68 / 0.34 | **0.25 / 0.17** | **1.81 / 0.55** | 3.40 / 6.79 | 3.58 / 5.00 · 2.2 s | 3.55 / 4.13 · 2.9 s | 3.01 / 13.88 · 12.7 s |
+| SAC, no preview (10 Hz) | 1.07 / 0.41 | 0.40 / 0.20 | 2.22 / 0.68 | 2.83 / 6.87 | 3.10 / 4.91 · 0.4 s | 3.53 / 3.96 · 2.6 s | 3.91 / 12.60 · 12.3 s |
+
+One episode per cell, sensor noise on (seed 0): mean chamber-pressure / mixture-ratio error in percent, and the seconds spent over a limit when there were any. **Bold**: the lowest pressure error in the column. The 10 Hz agents run at their own rate; the others at 20 Hz.
+{: .caption }
+
+```vegalite
+{
+ "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+ "title": {
+  "text": "Every controller through the challenge's seven test cases",
+  "subtitle": "Chamber-pressure MAPE (%) of one episode per cell; darker is worse. Test cases in miniature on the surrogate, not DLR's simulator; scenarios.json, data/results/summary.json"
+ },
+ "width": "container",
+ "height": 330,
+ "data": {
+  "values": [
+   {
+    "controller": "Open-loop feedforward",
+    "case": "1. Nominal, known reference",
+    "mape_p": 4.71,
+    "mape_rof": 4.49,
+    "over_s": 3.55
+   },
+   {
+    "controller": "Open-loop feedforward",
+    "case": "2. Nominal, unknown reference",
+    "mape_p": 5.22,
+    "mape_rof": 4.61,
+    "over_s": 2.35
+   },
+   {
+    "controller": "Open-loop feedforward",
+    "case": "3. Engine varies, distribution known",
+    "mape_p": 5.45,
+    "mape_rof": 5.74,
+    "over_s": 7.6
+   },
+   {
+    "controller": "Open-loop feedforward",
+    "case": "4. Engine changed, nothing known",
+    "mape_p": 5.58,
+    "mape_rof": 6.47,
+    "over_s": 6.45
+   },
+   {
+    "controller": "Open-loop feedforward",
+    "case": "5. Slow drift (ageing)",
+    "mape_p": 6.84,
+    "mape_rof": 5.42,
+    "over_s": 9.6
+   },
+   {
+    "controller": "Open-loop feedforward",
+    "case": "6. Fault, with a detection signal",
+    "mape_p": 9.31,
+    "mape_rof": 12.85,
+    "over_s": 25.2
+   },
+   {
+    "controller": "Open-loop feedforward",
+    "case": "7. Fault, no detection signal",
+    "mape_p": 5.11,
+    "mape_rof": 18.35,
+    "over_s": 14.8
+   },
+   {
+    "controller": "Decoupled PI, tuned",
+    "case": "1. Nominal, known reference",
+    "mape_p": 2.79,
+    "mape_rof": 2.83,
+    "over_s": 1.95
+   },
+   {
+    "controller": "Decoupled PI, tuned",
+    "case": "2. Nominal, unknown reference",
+    "mape_p": 2.41,
+    "mape_rof": 1.98,
+    "over_s": 0.55
+   },
+   {
+    "controller": "Decoupled PI, tuned",
+    "case": "3. Engine varies, distribution known",
+    "mape_p": 3.31,
+    "mape_rof": 3.42,
+    "over_s": 2.0
+   },
+   {
+    "controller": "Decoupled PI, tuned",
+    "case": "4. Engine changed, nothing known",
+    "mape_p": 3.39,
+    "mape_rof": 3.44,
+    "over_s": 2.25
+   },
+   {
+    "controller": "Decoupled PI, tuned",
+    "case": "5. Slow drift (ageing)",
+    "mape_p": 3.78,
+    "mape_rof": 2.64,
+    "over_s": 4.35
+   },
+   {
+    "controller": "Decoupled PI, tuned",
+    "case": "6. Fault, with a detection signal",
+    "mape_p": 3.62,
+    "mape_rof": 4.09,
+    "over_s": 3.65
+   },
+   {
+    "controller": "Decoupled PI, tuned",
+    "case": "7. Fault, no detection signal",
+    "mape_p": 7.4,
+    "mape_rof": 12.58,
+    "over_s": 11.9
+   },
+   {
+    "controller": "Decoupled PI, bandwidth design",
+    "case": "1. Nominal, known reference",
+    "mape_p": 2.28,
+    "mape_rof": 3.25,
+    "over_s": 1.95
+   },
+   {
+    "controller": "Decoupled PI, bandwidth design",
+    "case": "2. Nominal, unknown reference",
+    "mape_p": 1.83,
+    "mape_rof": 2.71,
+    "over_s": 0.5
+   },
+   {
+    "controller": "Decoupled PI, bandwidth design",
+    "case": "3. Engine varies, distribution known",
+    "mape_p": 2.66,
+    "mape_rof": 3.77,
+    "over_s": 2.35
+   },
+   {
+    "controller": "Decoupled PI, bandwidth design",
+    "case": "4. Engine changed, nothing known",
+    "mape_p": 2.69,
+    "mape_rof": 3.96,
+    "over_s": 3.35
+   },
+   {
+    "controller": "Decoupled PI, bandwidth design",
+    "case": "5. Slow drift (ageing)",
+    "mape_p": 2.78,
+    "mape_rof": 3.65,
+    "over_s": 4.05
+   },
+   {
+    "controller": "Decoupled PI, bandwidth design",
+    "case": "6. Fault, with a detection signal",
+    "mape_p": 2.53,
+    "mape_rof": 3.63,
+    "over_s": 2.85
+   },
+   {
+    "controller": "Decoupled PI, bandwidth design",
+    "case": "7. Fault, no detection signal",
+    "mape_p": 5.85,
+    "mape_rof": 12.76,
+    "over_s": 12.0
+   },
+   {
+    "controller": "PPO (20 Hz)",
+    "case": "1. Nominal, known reference",
+    "mape_p": 1.27,
+    "mape_rof": 0.87,
+    "over_s": 0.0
+   },
+   {
+    "controller": "PPO (20 Hz)",
+    "case": "2. Nominal, unknown reference",
+    "mape_p": 0.64,
+    "mape_rof": 0.61,
+    "over_s": 0.0
+   },
+   {
+    "controller": "PPO (20 Hz)",
+    "case": "3. Engine varies, distribution known",
+    "mape_p": 2.03,
+    "mape_rof": 1.13,
+    "over_s": 0.0
+   },
+   {
+    "controller": "PPO (20 Hz)",
+    "case": "4. Engine changed, nothing known",
+    "mape_p": 3.43,
+    "mape_rof": 7.24,
+    "over_s": 0.0
+   },
+   {
+    "controller": "PPO (20 Hz)",
+    "case": "5. Slow drift (ageing)",
+    "mape_p": 3.58,
+    "mape_rof": 5.35,
+    "over_s": 1.65
+   },
+   {
+    "controller": "PPO (20 Hz)",
+    "case": "6. Fault, with a detection signal",
+    "mape_p": 3.08,
+    "mape_rof": 5.22,
+    "over_s": 1.95
+   },
+   {
+    "controller": "PPO (20 Hz)",
+    "case": "7. Fault, no detection signal",
+    "mape_p": 3.51,
+    "mape_rof": 13.1,
+    "over_s": 12.3
+   },
+   {
+    "controller": "SAC (20 Hz)",
+    "case": "1. Nominal, known reference",
+    "mape_p": 1.58,
+    "mape_rof": 1.36,
+    "over_s": 0.0
+   },
+   {
+    "controller": "SAC (20 Hz)",
+    "case": "2. Nominal, unknown reference",
+    "mape_p": 0.98,
+    "mape_rof": 1.08,
+    "over_s": 0.0
+   },
+   {
+    "controller": "SAC (20 Hz)",
+    "case": "3. Engine varies, distribution known",
+    "mape_p": 2.2,
+    "mape_rof": 1.72,
+    "over_s": 0.0
+   },
+   {
+    "controller": "SAC (20 Hz)",
+    "case": "4. Engine changed, nothing known",
+    "mape_p": 3.63,
+    "mape_rof": 6.56,
+    "over_s": 0.1
+   },
+   {
+    "controller": "SAC (20 Hz)",
+    "case": "5. Slow drift (ageing)",
+    "mape_p": 3.82,
+    "mape_rof": 4.87,
+    "over_s": 1.1
+   },
+   {
+    "controller": "SAC (20 Hz)",
+    "case": "6. Fault, with a detection signal",
+    "mape_p": 3.07,
+    "mape_rof": 4.81,
+    "over_s": 1.85
+   },
+   {
+    "controller": "SAC (20 Hz)",
+    "case": "7. Fault, no detection signal",
+    "mape_p": 3.16,
+    "mape_rof": 15.74,
+    "over_s": 12.45
+   },
+   {
+    "controller": "PPO, preview (10 Hz)",
+    "case": "1. Nominal, known reference",
+    "mape_p": 0.63,
+    "mape_rof": 0.36,
+    "over_s": 0.0
+   },
+   {
+    "controller": "PPO, preview (10 Hz)",
+    "case": "2. Nominal, unknown reference",
+    "mape_p": 0.29,
+    "mape_rof": 0.28,
+    "over_s": 0.0
+   },
+   {
+    "controller": "PPO, preview (10 Hz)",
+    "case": "3. Engine varies, distribution known",
+    "mape_p": 1.86,
+    "mape_rof": 0.57,
+    "over_s": 0.0
+   },
+   {
+    "controller": "PPO, preview (10 Hz)",
+    "case": "4. Engine changed, nothing known",
+    "mape_p": 3.13,
+    "mape_rof": 6.74,
+    "over_s": 0.0
+   },
+   {
+    "controller": "PPO, preview (10 Hz)",
+    "case": "5. Slow drift (ageing)",
+    "mape_p": 3.56,
+    "mape_rof": 5.1,
+    "over_s": 2.0
+   },
+   {
+    "controller": "PPO, preview (10 Hz)",
+    "case": "6. Fault, with a detection signal",
+    "mape_p": 3.76,
+    "mape_rof": 3.68,
+    "over_s": 2.8
+   },
+   {
+    "controller": "PPO, preview (10 Hz)",
+    "case": "7. Fault, no detection signal",
+    "mape_p": 2.75,
+    "mape_rof": 14.07,
+    "over_s": 12.8
+   },
+   {
+    "controller": "PPO, no preview (10 Hz)",
+    "case": "1. Nominal, known reference",
+    "mape_p": 1.43,
+    "mape_rof": 0.37,
+    "over_s": 0.0
+   },
+   {
+    "controller": "PPO, no preview (10 Hz)",
+    "case": "2. Nominal, unknown reference",
+    "mape_p": 0.78,
+    "mape_rof": 0.27,
+    "over_s": 0.0
+   },
+   {
+    "controller": "PPO, no preview (10 Hz)",
+    "case": "3. Engine varies, distribution known",
+    "mape_p": 2.03,
+    "mape_rof": 0.57,
+    "over_s": 0.0
+   },
+   {
+    "controller": "PPO, no preview (10 Hz)",
+    "case": "4. Engine changed, nothing known",
+    "mape_p": 2.64,
+    "mape_rof": 5.52,
+    "over_s": 0.0
+   },
+   {
+    "controller": "PPO, no preview (10 Hz)",
+    "case": "5. Slow drift (ageing)",
+    "mape_p": 2.99,
+    "mape_rof": 4.05,
+    "over_s": 0.0
+   },
+   {
+    "controller": "PPO, no preview (10 Hz)",
+    "case": "6. Fault, with a detection signal",
+    "mape_p": 3.76,
+    "mape_rof": 4.01,
+    "over_s": 2.2
+   },
+   {
+    "controller": "PPO, no preview (10 Hz)",
+    "case": "7. Fault, no detection signal",
+    "mape_p": 3.42,
+    "mape_rof": 13.43,
+    "over_s": 12.2
+   },
+   {
+    "controller": "SAC, preview (10 Hz)",
+    "case": "1. Nominal, known reference",
+    "mape_p": 0.68,
+    "mape_rof": 0.34,
+    "over_s": 0.0
+   },
+   {
+    "controller": "SAC, preview (10 Hz)",
+    "case": "2. Nominal, unknown reference",
+    "mape_p": 0.25,
+    "mape_rof": 0.17,
+    "over_s": 0.0
+   },
+   {
+    "controller": "SAC, preview (10 Hz)",
+    "case": "3. Engine varies, distribution known",
+    "mape_p": 1.81,
+    "mape_rof": 0.55,
+    "over_s": 0.0
+   },
+   {
+    "controller": "SAC, preview (10 Hz)",
+    "case": "4. Engine changed, nothing known",
+    "mape_p": 3.4,
+    "mape_rof": 6.79,
+    "over_s": 0.0
+   },
+   {
+    "controller": "SAC, preview (10 Hz)",
+    "case": "5. Slow drift (ageing)",
+    "mape_p": 3.58,
+    "mape_rof": 5.0,
+    "over_s": 2.2
+   },
+   {
+    "controller": "SAC, preview (10 Hz)",
+    "case": "6. Fault, with a detection signal",
+    "mape_p": 3.55,
+    "mape_rof": 4.13,
+    "over_s": 2.9
+   },
+   {
+    "controller": "SAC, preview (10 Hz)",
+    "case": "7. Fault, no detection signal",
+    "mape_p": 3.01,
+    "mape_rof": 13.88,
+    "over_s": 12.7
+   },
+   {
+    "controller": "SAC, no preview (10 Hz)",
+    "case": "1. Nominal, known reference",
+    "mape_p": 1.07,
+    "mape_rof": 0.41,
+    "over_s": 0.0
+   },
+   {
+    "controller": "SAC, no preview (10 Hz)",
+    "case": "2. Nominal, unknown reference",
+    "mape_p": 0.4,
+    "mape_rof": 0.2,
+    "over_s": 0.0
+   },
+   {
+    "controller": "SAC, no preview (10 Hz)",
+    "case": "3. Engine varies, distribution known",
+    "mape_p": 2.22,
+    "mape_rof": 0.68,
+    "over_s": 0.0
+   },
+   {
+    "controller": "SAC, no preview (10 Hz)",
+    "case": "4. Engine changed, nothing known",
+    "mape_p": 2.83,
+    "mape_rof": 6.87,
+    "over_s": 0.0
+   },
+   {
+    "controller": "SAC, no preview (10 Hz)",
+    "case": "5. Slow drift (ageing)",
+    "mape_p": 3.1,
+    "mape_rof": 4.91,
+    "over_s": 0.4
+   },
+   {
+    "controller": "SAC, no preview (10 Hz)",
+    "case": "6. Fault, with a detection signal",
+    "mape_p": 3.53,
+    "mape_rof": 3.96,
+    "over_s": 2.6
+   },
+   {
+    "controller": "SAC, no preview (10 Hz)",
+    "case": "7. Fault, no detection signal",
+    "mape_p": 3.91,
+    "mape_rof": 12.6,
+    "over_s": 12.3
+   }
+  ]
+ },
+ "encoding": {
+  "x": {
+   "field": "case",
+   "type": "nominal",
+   "sort": null,
+   "title": null,
+   "axis": {
+    "labelAngle": -30,
+    "labelLimit": 180
+   }
+  },
+  "y": {
+   "field": "controller",
+   "type": "nominal",
+   "sort": null,
+   "title": null,
+   "axis": {
+    "labelLimit": 220
+   }
+  },
+  "tooltip": [
+   {
+    "field": "controller"
+   },
+   {
+    "field": "case",
+    "title": "test case"
+   },
+   {
+    "field": "mape_p",
+    "title": "MAPE p_cc (%)"
+   },
+   {
+    "field": "mape_rof",
+    "title": "MAPE ROF (%)"
+   },
+   {
+    "field": "over_s",
+    "title": "over a limit (s)"
+   }
+  ]
+ },
+ "layer": [
+  {
+   "mark": {
+    "type": "rect",
+    "stroke": "var(--md-default-bg-color)",
+    "strokeWidth": 2
+   },
+   "encoding": {
+    "color": {
+     "field": "mape_p",
+     "type": "quantitative",
+     "scale": {
+      "type": "log",
+      "range": [
+       "var(--viz-ord-3)",
+       "var(--viz-ord-1)"
+      ]
+     },
+     "legend": {
+      "title": "MAPE p_cc (%)"
+     }
+    }
+   }
+  },
+  {
+   "mark": {
+    "type": "text",
+    "fontSize": 11
+   },
+   "encoding": {
+    "text": {
+     "field": "mape_p",
+     "type": "quantitative",
+     "format": ".2f"
+    },
+    "color": {
+     "condition": {
+      "test": "datum.mape_p > 2",
+      "value": "var(--viz-seq-label)"
+     },
+     "value": "var(--viz-ink)"
+    }
+   }
+  }
+ ]
+}
+```
+<!-- END generated: scenarios -->
+
+What the matrix says:
+
+- **Nominal tracking (1–2) is the networks' game.** PPO at 20 Hz tracks pressure to 0.6–1.3 % and mixture ratio to under 0.9 %, against 1.8–2.8 % and 2–3.3 % for the PIs. With preview, the 10 Hz agents halve that again.
+- **Model error (3–4) splits pressure from mixture ratio.** On a randomised engine (3) the networks still lead. On the changed engine (4) their mixture ratio sits 5.5–7.2 % off, the steady offset of a controller without integral action, while the PIs stay at 3.4–4.0 %.
+- **Drift and the bearing fault (5–6) favour the bandwidth-designed PI** on pressure (2.5–2.8 %), and its mixture-ratio error stays under 3.7 %. The networks keep pressure within 3–3.8 % but lose the mixture ratio to 3.7–5.4 %, and spend up to 2.9 s over a limit.
+- **A stuck TOV (7) breaks everyone's mixture ratio** (12–16 %): with TOV frozen, TFV alone cannot hold two outputs. The networks keep pressure at 2.8–3.9 %, by trading away the mixture ratio. The PIs, whose mixture-ratio loop keeps pushing a valve that does not move, lose both (5.9–7.4 % on pressure). This is why the challenge pairs a fault with a detection signal (6) against one without (7). A controller told that TOV is stuck could give up the mixture ratio on purpose; none of these is told, and none could use the signal yet.
+
+## The PI's bandwidth {#pi-bandwidth}
+
+<!-- BEGIN generated: bandwidth -->
+```vegalite
+{
+ "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+ "title": {
+  "text": "The PI's bandwidth: faster loops, until the delay bites",
+  "subtitle": "MAPE on 10 held-out episodes, one loop's bandwidth swept, the other at its default (0.15 / 0.47 Hz). Surrogate, not DLR's simulator; data/results/pi_bandwidth.json"
+ },
+ "width": "container",
+ "height": 220,
+ "data": {
+  "values": [
+   {
+    "sweep": "pressure loop swept",
+    "bandwidth": 0.1,
+    "output": "chamber pressure",
+    "mape": 2.924,
+    "pm": 83.0
+   },
+   {
+    "sweep": "pressure loop swept",
+    "bandwidth": 0.1,
+    "output": "mixture ratio",
+    "mape": 3.059,
+    "pm": 83.0
+   },
+   {
+    "sweep": "pressure loop swept",
+    "bandwidth": 0.2,
+    "output": "chamber pressure",
+    "mape": 2.351,
+    "pm": 77.5
+   },
+   {
+    "sweep": "pressure loop swept",
+    "bandwidth": 0.2,
+    "output": "mixture ratio",
+    "mape": 3.844,
+    "pm": 77.5
+   },
+   {
+    "sweep": "pressure loop swept",
+    "bandwidth": 0.3,
+    "output": "chamber pressure",
+    "mape": 2.519,
+    "pm": 73.1
+   },
+   {
+    "sweep": "pressure loop swept",
+    "bandwidth": 0.3,
+    "output": "mixture ratio",
+    "mape": 4.912,
+    "pm": 73.1
+   },
+   {
+    "sweep": "pressure loop swept",
+    "bandwidth": 0.5,
+    "output": "chamber pressure",
+    "mape": 3.334,
+    "pm": 66.5
+   },
+   {
+    "sweep": "pressure loop swept",
+    "bandwidth": 0.5,
+    "output": "mixture ratio",
+    "mape": 7.361,
+    "pm": 66.5
+   },
+   {
+    "sweep": "pressure loop swept",
+    "bandwidth": 0.75,
+    "output": "chamber pressure",
+    "mape": 3.941,
+    "pm": 60.7
+   },
+   {
+    "sweep": "pressure loop swept",
+    "bandwidth": 0.75,
+    "output": "mixture ratio",
+    "mape": 8.69,
+    "pm": 60.7
+   },
+   {
+    "sweep": "pressure loop swept",
+    "bandwidth": 1.0,
+    "output": "chamber pressure",
+    "mape": 4.624,
+    "pm": 56.6
+   },
+   {
+    "sweep": "pressure loop swept",
+    "bandwidth": 1.0,
+    "output": "mixture ratio",
+    "mape": 10.235,
+    "pm": 56.6
+   },
+   {
+    "sweep": "pressure loop swept",
+    "bandwidth": 1.5,
+    "output": "chamber pressure",
+    "mape": 5.691,
+    "pm": 50.8
+   },
+   {
+    "sweep": "pressure loop swept",
+    "bandwidth": 1.5,
+    "output": "mixture ratio",
+    "mape": 12.595,
+    "pm": 50.8
+   },
+   {
+    "sweep": "mixture-ratio loop swept",
+    "bandwidth": 0.1,
+    "output": "chamber pressure",
+    "mape": 2.367,
+    "pm": 80.0
+   },
+   {
+    "sweep": "mixture-ratio loop swept",
+    "bandwidth": 0.1,
+    "output": "mixture ratio",
+    "mape": 4.85,
+    "pm": 80.0
+   },
+   {
+    "sweep": "mixture-ratio loop swept",
+    "bandwidth": 0.2,
+    "output": "chamber pressure",
+    "mape": 2.438,
+    "pm": 73.0
+   },
+   {
+    "sweep": "mixture-ratio loop swept",
+    "bandwidth": 0.2,
+    "output": "mixture ratio",
+    "mape": 4.163,
+    "pm": 73.0
+   },
+   {
+    "sweep": "mixture-ratio loop swept",
+    "bandwidth": 0.3,
+    "output": "chamber pressure",
+    "mape": 2.472,
+    "pm": 67.8
+   },
+   {
+    "sweep": "mixture-ratio loop swept",
+    "bandwidth": 0.3,
+    "output": "mixture ratio",
+    "mape": 3.793,
+    "pm": 67.8
+   },
+   {
+    "sweep": "mixture-ratio loop swept",
+    "bandwidth": 0.5,
+    "output": "chamber pressure",
+    "mape": 2.52,
+    "pm": 60.5
+   },
+   {
+    "sweep": "mixture-ratio loop swept",
+    "bandwidth": 0.5,
+    "output": "mixture ratio",
+    "mape": 3.42,
+    "pm": 60.5
+   },
+   {
+    "sweep": "mixture-ratio loop swept",
+    "bandwidth": 0.75,
+    "output": "chamber pressure",
+    "mape": 2.567,
+    "pm": 54.9
+   },
+   {
+    "sweep": "mixture-ratio loop swept",
+    "bandwidth": 0.75,
+    "output": "mixture ratio",
+    "mape": 3.272,
+    "pm": 54.9
+   },
+   {
+    "sweep": "mixture-ratio loop swept",
+    "bandwidth": 1.0,
+    "output": "chamber pressure",
+    "mape": 2.598,
+    "pm": 51.1
+   },
+   {
+    "sweep": "mixture-ratio loop swept",
+    "bandwidth": 1.0,
+    "output": "mixture ratio",
+    "mape": 3.22,
+    "pm": 51.1
+   },
+   {
+    "sweep": "mixture-ratio loop swept",
+    "bandwidth": 1.5,
+    "output": "chamber pressure",
+    "mape": 2.649,
+    "pm": 46.4
+   },
+   {
+    "sweep": "mixture-ratio loop swept",
+    "bandwidth": 1.5,
+    "output": "mixture ratio",
+    "mape": 3.229,
+    "pm": 46.4
+   }
+  ]
+ },
+ "facet": {
+  "column": {
+   "field": "sweep",
+   "type": "nominal",
+   "title": null,
+   "sort": [
+    "pressure loop swept",
+    "mixture-ratio loop swept"
+   ]
+  }
+ },
+ "spec": {
+  "width": 300,
+  "height": 200,
+  "layer": [
+   {
+    "mark": {
+     "type": "line",
+     "point": {
+      "filled": true,
+      "size": 60
+     },
+     "strokeWidth": 2
+    },
+    "encoding": {
+     "x": {
+      "field": "bandwidth",
+      "type": "quantitative",
+      "scale": {
+       "type": "log"
+      },
+      "title": "closed-loop bandwidth (Hz), log scale"
+     },
+     "y": {
+      "field": "mape",
+      "type": "quantitative",
+      "scale": {
+       "type": "log"
+      },
+      "title": "MAPE (%), log scale"
+     },
+     "color": {
+      "field": "output",
+      "type": "nominal",
+      "scale": {
+       "domain": [
+        "chamber pressure",
+        "mixture ratio"
+       ],
+       "range": [
+        "var(--viz-s1)",
+        "var(--viz-s2)"
+       ]
+      },
+      "legend": {
+       "title": null
+      }
+     },
+     "tooltip": [
+      {
+       "field": "bandwidth",
+       "title": "bandwidth (Hz)"
+      },
+      {
+       "field": "output"
+      },
+      {
+       "field": "mape",
+       "title": "MAPE (%)"
+      },
+      {
+       "field": "pm",
+       "title": "phase margin of the swept loop (\u00b0)"
+      }
+     ]
+    }
+   }
+  ]
+ }
+}
+```
+<!-- END generated: bandwidth -->
+
+The PI by bandwidth uses each decoupled loop's first-order-plus-dead-time model and the SIMC rules ([equation](primer/equations.md#eq-pi-bandwidth)). In the Lab, choose *set by bandwidth* under [PI](primer/8-lab.md?preset=pi&pi=bw) to move the two sliders and watch the margins and the loop gain change.
+
+- **The pressure loop has an optimum** near 0.15–0.2 Hz. Faster loops excite the thermal sag and the coupling to the mixture ratio, which the first-order model does not see. At 0.5 Hz and above both errors climb steeply, although the model still promises over 60° of phase margin.
+- **The mixture-ratio loop keeps improving up to about 1 Hz**, past what its model calls tight ($\lambda = \theta$, 0.47 Hz). Its identified dead time is conservative.
+- **The tuned PI sits elsewhere**: a slow pressure loop (crossover 0.07 Hz) and a fast, lightly damped mixture-ratio loop (crossover 0.43 Hz, 18° of margin). It trades a little pressure error for a much better mixture ratio, which the reward's two equal terms favour.
+
+## Earlier baselines at 10 Hz {#earlier-10-hz}
+
+These ran at 0.1 s, the thesis's simulation setting, before the challenge's 20 Hz and no-preview rules were known. The PI here is the 10 Hz PI. Read the preview rows as an ablation: they show what anticipating set-point changes is worth.
+
+### Results at 10 Hz
 
 | Controller | MAPE $p_{cc}$ [%] | MAPE $R_{OF}$ [%] | Return | Steps settled $p_{cc}$ / $R_{OF}$ | Settling $p_{cc}$ / $R_{OF}$ [s] | Valve travel | Violation steps | Randomised MAPE $p_{cc}$ / $R_{OF}$ [%] | Training |
 |---|---|---|---|---|---|---|---|---|---|
@@ -301,7 +3594,7 @@ Three readings:
 2. **The learned controllers are fast and clean on the plant they were trained on.** They settle 93–96 % of pressure steps, in 0.5–1.0 s, and all but SAC without preview use less valve travel than the PI, which hunts. PPO and SAC end up within about 0.1 % of each other when both have preview; SAC is better without it.
 3. **Domain randomisation exposes them.** With engine and sensor parameters drawn from DLR's Table A.3 ranges, the networks' mixture-ratio error rises five- to sixfold, to 1.6–1.9 %, close to the PI's 2.0 % (the PI improves slightly under randomisation, partly because some draws shorten the sensor delays). Pressure error only doubles. The [robustness section](#robustness) shows where this comes from.
 
-## On the evaluation profile
+### On the evaluation profile
 
 A fixed 40 s profile with steps and ramps in both outputs. It is the Lab's default, so you can replay each controller there ([PI](primer/8-lab.md?preset=pi), [PPO](primer/8-lab.md?preset=ppo-preview), [SAC](primer/8-lab.md?preset=sac-preview)).
 
@@ -517,7 +3810,7 @@ A fixed 40 s profile with steps and ramps in both outputs. It is the Lab's defau
 
 On the profile, the PI's slow pressure loop and its limit cycle at 50 bar are visible between 18 s and 27 s, where the plant's fast gain is highest. At the 50 → 38 bar step at 27 s, PPO and SAC with preview cut TFV at 26.7 s, before the step arrives, while the PI reacts at 27.3 s; in the Lab, compare the [PI](primer/8-lab.md?preset=pi) and [PPO](primer/8-lab.md?preset=ppo-preview) valve panels around 27 s.
 
-## Robustness {#robustness}
+### Robustness {#robustness}
 
 The heat flux into the cooling channels drives the slow loop, and it is the kind of parameter the challenge's test cases 3–4 perturb: DLR randomised its heat-flux factor by ±4 % ([Table A.3](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=165)). Here it is scaled by up to ±10 %, with every controller left as tuned or trained.
 
@@ -637,7 +3930,7 @@ The oxidiser side dominates. With the TOV flow coefficient 5 % low, PPO holds th
 
 This is the same lesson as DLR's. With the fuel-turbopump efficiency 5 % lower than in training, its SAC controller reached 1.7 % error; trained with domain randomisation, 0.3 % ([thesis p. 91 and Table 5.3](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=108)). The obvious next experiments are training with randomisation, giving the network an integrator (an error-integral observation, or a residual policy on top of PI, [open question 3](06-open-questions.md#3-residual-rl-on-a-decoupled-pi-baseline-with-a-bounded-envelope)), or both.
 
-## A second seed {#a-second-seed}
+### A second seed {#a-second-seed}
 
 One training run per configuration says little about an algorithm. PPO is cheap enough here to train twice; SAC, at about an hour per run, was trained once.
 
@@ -652,7 +3945,7 @@ One training run per configuration says little about an algorithm. PPO is cheap 
 
 The preview effect is larger than the seed-to-seed spread: both PPO seeds with preview land at 0.50–0.52 % pressure error, and both without at 1.07–1.21 %. Two seeds do not give a spread estimate, but they rule out the effect being one lucky run.
 
-## Learning curves
+### Learning curves
 
 ```vegalite
 {
@@ -759,9 +4052,22 @@ Training returns are those of the stochastic policy, which pays the valve-travel
 
 ## What this does and does not show
 
-- **It shows the pipeline works end to end**: an environment with DLR's reward, constraints, preview and stacking; a classical baseline with feedforward, decoupling and anti-windup; two RL algorithms trained on a CPU; export of the networks; and a browser port checked against Python (to $10^{-6}$ for the engine and the PI).
-- **It shows which questions are worth asking on the real simulator**: how much preview is worth, how well a feedback-free schedule holds up, and how quickly each learner gets there.
-- **It does not show how any of these controllers would do on LUMEN.** The surrogate matches DLR's model at one operating point to within about 13 % in static gain and 25 % in settling time. Its envelope is narrower, its noise is gentler (σ 0.005 on $R_{OF}$ against about 0.1 on the real engine), and its dynamics have fewer states. Two seeds for PPO and one for SAC are not a result either.
-- **Next, on the real simulator** (20 Hz, no preview): five seeds per learner, PI with dynamic decoupling, a residual agent on top of PI ([open question 3](06-open-questions.md#3-residual-rl-on-a-decoupled-pi-baseline-with-a-bounded-envelope)), and anticipation without preview ([open question 5](06-open-questions.md#5-anticipation-without-preview-delays-and-action-design-for-the-22-task)).
+- **It shows the pipeline works end to end.** It has:
+    - an environment with DLR's reward and constraints at the challenge's 20 Hz;
+    - the challenge's seven test cases with faults;
+    - a classical baseline with feedforward, decoupling, anti-windup and a bandwidth design;
+    - two RL algorithms trained on a CPU, with their networks exported;
+    - a browser port checked against Python to $10^{-6}$ for the engine, the PI, the faults and the test cases.
+- **It shows which questions are worth asking on the real simulator:**
+    - how much anticipation is worth when preview is not allowed;
+    - whether a learned controller needs integral action, or a residual on top of a PI, to survive model error;
+    - how a controller should behave when a valve sticks;
+    - how much training a 20 Hz agent needs.
+- **It does not show how any of these controllers would do on LUMEN.** The surrogate matches DLR's model at one operating point to within about 13 % in static gain and 25 % in settling time. Its envelope is narrower, its noise is gentler (σ 0.005 on $R_{OF}$ against about 0.1 on the real engine), and its dynamics have fewer states. Its faults are this site's choices. One seed per learner at 20 Hz is not a result either.
+- **Next, on the real simulator** (20 Hz, no preview):
+    - five seeds per learner, with budgets long enough for SAC;
+    - a residual agent on top of PI ([open question 3](06-open-questions.md#3-residual-rl-on-a-decoupled-pi-baseline-with-a-bounded-envelope));
+    - anticipation without preview ([open question 5](06-open-questions.md#5-anticipation-without-preview-delays-and-action-design-for-the-22-task));
+    - fault-aware control for test cases 6–7 ([open question 4](06-open-questions.md#4-fault-tolerant-control-with-latent-mode-inference-test-cases-67)).
 
 Reproduce: `bash scripts/reproduce.sh` re-evaluates the stored networks and checks them against `data/results/summary.json`; `bash scripts/reproduce.sh --full` retrains everything.

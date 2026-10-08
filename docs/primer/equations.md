@@ -100,7 +100,8 @@ p_{cc}^{\mathrm{meas}}(t) = p_{cc}(t - 0.1\ \mathrm{s}) + \mathcal N(0, 0.05^2),
 $$
 
 - **DLR:** moving-average and delay models, randomised over 0.05–0.15 s ($p_{cc}$) and 0.1–0.25 s (flows) ([Table A.3](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=165)).
-- **Surrogate:** a pure delay (resolution 0.05 s) and Gaussian noise; with domain randomisation the delays are drawn from DLR's ranges.
+- **Surrogate:** a pure delay (resolution 0.05 s) and Gaussian noise; with domain randomisation the delays are drawn from DLR's ranges. Sensor faults act on the delayed, noisy reading.
+- **Rate:** the controller reads and acts every 0.05 s, the challenge's 20 Hz ([organisers, Oct 2026](../07-references.md#organisers2026)); the earlier baselines used 0.1 s.
 - **See:** [Sensors, delays and noise](6-sensors.md).
 
 ## Reward {#eq-reward}
@@ -120,6 +121,32 @@ u = u_{\mathrm{trim}}(y_{\mathrm{ref}}) + K(y_{\mathrm{ref}})^{-1}\begin{pmatrix
 $$
 
 - **Feedforward** $u_{\mathrm{trim}}$ and the static gain matrix $K$ are interpolated from a trim table over 32.5–52.5 bar and $R_{OF}$ 2.8–4.0 (`trim.py`).
-- **Gains** (tuned by Nelder–Mead on 12 training episodes): $k_{p,p}$ = 0.87, $k_{i,p}$ = 0.085 /s, $k_{p,r}$ = 0.58, $k_{i,r}$ = 4.6 /s.
+- **Gains, either way:** tuned by Nelder–Mead on 12 training episodes at 20 Hz (`pi_gains.json`), or designed for a bandwidth (below).
 - **Anti-windup:** conditional integration.
 - **See:** [Lab, PI](8-lab.md?preset=pi); `src/rl_rocket_engine/surrogate/pi.py`.
+
+## PI by bandwidth {#eq-pi-bandwidth}
+
+Each decoupled channel is fitted with a first order plus dead time, $G_i(s) = k_i\,e^{-\theta_i s}/(\tau_i s + 1)$. The fit uses the first 3 s of a step through the decoupler at 40 bar, so it captures the fast part before the thermal sag. The dead time $\theta_i$ adds the sensor delay and half a control interval. For a closed-loop bandwidth $f_b$, the SIMC rules (Skogestad 2003) give
+
+$$
+\lambda = \frac{1}{2\pi f_b}, \qquad k_p = \frac{\tau_i}{k_i(\lambda + \theta_i)}, \qquad T_i = \min\big(\tau_i,\ 4(\lambda + \theta_i)\big), \qquad k_i^{\mathrm{PI}} = k_p / T_i
+$$
+
+- **Default:** the pair of bandwidths with the best mean return on the 12 training episodes: 0.15 Hz for the pressure loop and 0.47 Hz for the mixture-ratio loop. SIMC's tight choice $\lambda = \theta_i$ gives about 60° of phase margin on the model, but 0.72 Hz is too fast for the pressure loop on the engine. Its model leaves out the thermal sag and the coupling.
+- **Margins:** the crossover frequency and phase margin of $L(j\omega) = (k_p + k_i^{\mathrm{PI}}/j\omega)\,G_i(j\omega)$, shown live in the Lab.
+- **See:** [Lab, PI by bandwidth](8-lab.md?preset=pi&pi=bw); `pi.py` (`identify_loops`, `gains_for_bandwidth`, `loop_margins`).
+
+## Malfunctions {#eq-faults}
+
+A fault starts at $t_0$, abruptly or over a ramp, with severity $s(t) \in [0, 1]$ scaling its magnitude $m$:
+
+$$
+\frac{d\omega}{dt} = \frac{\tau_{\mathrm{turbine}} - (1 + s\,m)\,\tau_{\mathrm{pump}}}{I}\ \text{(bearing wear)}, \qquad
+\dot m_{\mathrm{to\ chamber}} = (1 - s\,m)\,\dot m_{\mathrm{pump}}\ \text{(leak)}, \qquad
+k_{\mathrm{turbine\ path}} \to (1 - s\,m)\,k\ \text{(blockage)}
+$$
+
+- **Also:** a valve frozen where it is (stuck), extra valve dead time (actuator lag), extra wall heat (cooling degradation), turbine torque falling over the episode (ageing), and a pressure sensor that is offset, drifts or freezes, or a mixture-ratio sensor with a gain error.
+- **DLR:** DX'25 simulated pump bearing failure, turbine nozzle blockage, a pump leak, a stuck valve and multiplicative sensor faults on its LUMEN model ([LiU benchmark page](https://vehsys.gitlab-pages.liu.se/dx25benchmarks/lumen/lumen_index)). The challenge's test cases 5–7 are slow drift and a fault with and without a detection signal ([AI4Aerospace 2025](https://w3.onera.fr/ailab/sites/default/files/2025-06/abstractsAI4A5thworkshop_external.pdf#page=56)). The magnitudes and onsets here are this site's choices.
+- **See:** the Lab's *Test cases and faults* panel; `faults.py`, `scenarios.json`.

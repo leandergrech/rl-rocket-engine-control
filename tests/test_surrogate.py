@@ -70,7 +70,8 @@ def test_environment_api_and_shapes():
         assert r <= 0 and np.isfinite(obs).all()
         steps += 1
         done = term or trunc
-    assert steps == 300
+    assert steps == 600  # 30 s at 20 Hz
+    assert LumenSurrogateEnv(dt=0.1).n_steps == 300  # the earlier baselines' 10 Hz
 
 
 def test_random_references_stay_in_the_task_box():
@@ -107,12 +108,12 @@ def test_settling_time_metric():
         ref = 40.0 if k < 10 else 44.0
         y = 40.0 if k < 10 else 44.0 - 4.0 * np.exp(-(k - 10) / 5)
         rows.append(dict(p_cc=y, p_ref=ref, rof=3.4, rof_ref=3.4, du=0.0, violations={}, reward=0.0))
-    m = episode_metrics(rows)
-    # Inside +-2 % (0.88 bar) once 4 exp(-n/5) < 0.88, i.e. after n = 8 samples (0.8 s).
+    m = episode_metrics(rows, dt=0.1)
+    # Inside +-2 % (0.88 bar) once 4 exp(-n/5) < 0.88, i.e. after n = 8 samples (0.8 s at 0.1 s per sample).
     assert m["settle_p"] == pytest.approx(0.8)
 
 
-@pytest.mark.parametrize("name", ["ppo-preview", "sac-nopreview"])
+@pytest.mark.parametrize("name", ["ppo-preview", "sac"])
 def test_training_smoke_and_export(tmp_path, name):
     pytest.importorskip("stable_baselines3")
     from rl_rocket_engine.surrogate.rl import JsonPolicy, train

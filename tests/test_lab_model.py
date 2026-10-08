@@ -18,8 +18,10 @@ import pytest
 
 from rl_rocket_engine.surrogate import DEFAULT_PARAMS, EngineModel, outputs, steady_state
 from rl_rocket_engine.surrogate.env import LumenSurrogateEnv, load_trim_table
-from rl_rocket_engine.surrogate.pi import PIGains, run_episode
+from rl_rocket_engine.surrogate.pi import PIGains, gains_for_bandwidth, identify_loops, loop_margins, run_episode
 from rl_rocket_engine.surrogate.rl import JsonPolicy
+from rl_rocket_engine.surrogate.faults import KINDS
+from rl_rocket_engine.surrogate.scenarios import episode_options, load as load_scenarios
 
 ROOT = Path(__file__).resolve().parents[1]
 JS = ROOT / "docs" / "javascripts" / "lumen-model.js"
@@ -40,12 +42,23 @@ try {{
   for (const [xt, xo] of F.valves) {{ const o = M.outputs(M.steadyState(xt, xo, p), p); res.steady.push([o.p_cc, o.rof, o.t_rc, o.n_otp, o.n_ftp]); }}
   const m = new M.EngineModel(p, 0.005); m.reset(p.x_tfv_ref, p.x_tov_ref); m.command(0.4, 0.31);
   for (let k = 0; k < 50; k++) {{ const o = m.advance(0.1); res.step.push([o.p_cc, o.rof]); }}
-  const prof = M.evalProfile(0.1, 4);
+  const prof = M.evalProfile(0.05, 4);
   let ep = new M.Episode({{params: p, trim, noise: false, pref: prof.pref, rref: prof.rref}});
   const pi = new M.DecoupledPI(F.gains, trim);
   while (!ep.done) {{ const [pr, rr] = ep.setpoint; const u = pi.step(ep.meas[0], ep.meas[1], pr, rr); const s = ep.step(u); res.pi.push([s.p_cc, s.rof, s.u_tfv, s.u_tov, s.reward]); }}
+  // the seven test cases, with faults, engine changes and sensor delays, under the same PI
+  res.scenarios = {{}};
+  for (const [name, sc] of Object.entries(F.scenarios)) {{
+    const o = M.scenarioOptions(sc, p, 0.05, 4);
+    ep = new M.Episode(Object.assign({{trim, noise: false, dt: 0.05}}, o));
+    const c = new M.DecoupledPI(F.gains, trim), rows = [];
+    while (!ep.done) {{ const s = ep.step(c.step(ep.meas[0], ep.meas[1], ...ep.setpoint)); rows.push([s.p_cc, s.rof, s.x_tfv, s.x_tov, s.p_meas]); }}
+    res.scenarios[name] = rows;
+  }}
+  res.bw = F.bandwidths.map(([fp, fr]) => {{ const g = M.piFromBandwidth(fp, fr, F.loops); const m = M.loopMargins(g, F.loops); return [g.kp_p, g.ki_p, g.kp_r, g.ki_r, m.p.fc, m.p.pm, m.rof.fc, m.rof.pm]; }});
   for (const [name, spec] of Object.entries(F.policies)) {{
-    ep = new M.Episode({{params: p, trim, noise: false, preview: spec.env.preview, pref: prof.pref, rref: prof.rref}});
+    const dt = spec.env.dt || 0.1, pr = M.evalProfile(dt, 4);
+    ep = new M.Episode({{params: p, trim, noise: false, preview: spec.env.preview, pref: pr.pref, rref: pr.rref, dt}});
     const rows = [];
     while (!ep.done && rows.length < 150) {{ const a = M.mlp(spec, ep.obs()); const s = ep.step(M.toValves(a)); rows.push([s.p_cc, s.rof, s.u_tfv, s.u_tov]); }}
     res.policies[name] = rows;
@@ -63,7 +76,11 @@ try {{
   st.setPerturb({{heat: 1.1, tf: 0.95, to: 0.95, delay: 0.15, delay0: 0.05, sensorDelay: false, noise: false}});
   st.callout("sp", "Set-point step", "PI has to follow", "chamber"); st.callout("lim", "Limit", "", "hot", {{color: "#e34948"}});
   st.pulse(); st.zoomBy(1.6); res.zoom = st.zoom; st.setValveDrag(() => {{}});
+  // every malfunction at once, with its onset effects
+  st.setFaults(F.faultKinds.map((k) => ({{kind: k, sev: 1, mag: 0.3, age: 2, label: k, short: k}})));
+  for (const k of F.faultKinds) st.faultOnset(k, k, "test");
   st.advance(1.0);  // thirty frames with all of the above on screen
+  res.faultBadge = st.status().kind;
   res.badge = st.status().text;
   // a second stand, ignited: its start-up sequence only advances if animation frames really run
   const st2 = window.ReStand.create(document.getElementById("stand2"), {{state: "off"}});
@@ -77,6 +94,8 @@ setTimeout(() => {{
 </script></body></html>"""
 
 VALVES = [(0.30, 0.21), (0.45, 0.30), (0.25, 0.15)]
+LOOPS = identify_loops()
+BANDWIDTHS = [(0.1, 0.2), (0.4, 0.45), (1.0, 1.5)]
 
 
 @pytest.fixture(scope="module")
@@ -84,7 +103,7 @@ def browser(tmp_path_factory):
     if CHROME is None:
         pytest.skip("Chrome not installed")
     fixture = {"params": DEFAULT_PARAMS.to_dict(), "trim": load_trim_table(), "valves": VALVES,
-               "gains": PIGains.load().__dict__,
+               "gains": PIGains.load().__dict__, "scenarios": load_scenarios(), "loops": LOOPS, "bandwidths": BANDWIDTHS, "faultKinds": list(KINDS),
                "policies": {p.stem: json.loads(p.read_text()) for p in POLICIES}}
     page = tmp_path_factory.mktemp("lab") / "harness.html"
     stand = ROOT / "docs" / "javascripts" / "teststand.js"
@@ -109,6 +128,7 @@ def test_test_stand_layers_draw_without_errors(browser):
     assert browser["zoom"] > 1.5
     assert browser["later"] == "ignition"  # GN2 spin-up lasts 1 s, then 1.6 s of pressure rise
     assert "ROF" in browser["badge"]  # the violated limit is named in the status badge
+    assert browser["faultBadge"] == "fault"
 
 
 def test_steady_states_agree(browser):
@@ -125,6 +145,23 @@ def test_valve_step_agrees(browser):
     np.testing.assert_allclose(browser["step"], py, rtol=1e-7)
 
 
+def test_scenarios_agree(browser):
+    # Faults, engine changes and sensor delays of the seven test cases, under the PI, in both ports.
+    for name, sc in load_scenarios().items():
+        env = LumenSurrogateEnv(noise=False)
+        log = run_episode(env, seed=0, options=episode_options(sc, env.dt, env.n_future))
+        py = [[s["p_cc"], s["rof"], s["x_tfv"], s["x_tov"], s["p_meas"]] for s in log]
+        np.testing.assert_allclose(browser["scenarios"][name], py, rtol=1e-6, atol=1e-7, err_msg=name)
+
+
+def test_pi_bandwidth_design_agrees(browser):
+    for (fp, fr), js in zip(BANDWIDTHS, browser["bw"]):
+        g = gains_for_bandwidth(fp, fr, LOOPS)
+        m = loop_margins(g, LOOPS)
+        py = [g.kp_p, g.ki_p, g.kp_r, g.ki_r, m["p"]["fc"], m["p"]["pm"], m["rof"]["fc"], m["rof"]["pm"]]
+        np.testing.assert_allclose(js, py, rtol=1e-6)
+
+
 def test_pi_closed_loop_agrees(browser):
     log = run_episode(LumenSurrogateEnv(noise=False), seed=0, options={"profile": "eval"})
     py = [[s["p_cc"], s["rof"], s["u_tfv"], s["u_tov"], s["reward"]] for s in log]
@@ -134,7 +171,7 @@ def test_pi_closed_loop_agrees(browser):
 @pytest.mark.parametrize("path", POLICIES, ids=[p.stem for p in POLICIES])
 def test_policy_closed_loop_agrees(browser, path):
     spec = json.loads(path.read_text())
-    env = LumenSurrogateEnv(noise=False, preview=spec["env"]["preview"])
+    env = LumenSurrogateEnv(noise=False, preview=spec["env"]["preview"], dt=spec["env"].get("dt", 0.1))
     obs, _ = env.reset(seed=0, options={"profile": "eval"})
     pol = JsonPolicy(spec)
     rows = []

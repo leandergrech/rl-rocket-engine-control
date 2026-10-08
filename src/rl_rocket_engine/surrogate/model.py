@@ -13,7 +13,9 @@ thesis describes and is calibrated to the numbers it publishes (see ``params.py`
 * the wall heat flux into the coolant scales as p_cc^0.8 (thesis Fig. 4.6) and is stored in a lumped
   thermal mass, which is what makes the fuel side slow;
 * chamber pressure from the characteristic velocity, p_cc = (c*/A_t) * total injected flow;
-* electromechanical valves with dead time, velocity and acceleration limits (thesis Fig. 4.10).
+* electromechanical valves with dead time, velocity and acceleration limits (thesis Fig. 4.10);
+* malfunctions (``faults.py``): extra bearing friction on a turbopump, a leak after a pump, a valve
+  frozen in place. On the healthy engine these terms are exactly zero.
 
 Pressures are in bar, flows in kg/s, temperatures in K, shaft speeds in rad/s.
 
@@ -56,6 +58,8 @@ def pump_dp(w: float, m: float, rho: float, p: Params) -> float:
 def algebraic(s: list[float], p: Params) -> dict:
     """Quantities that follow instantly from the state: injected fuel, pressures, turbine flows."""
     m_o, m_f, t_w = s[M_O], s[M_F], max(s[T_W], 150.0)
+    m_oc = m_o * (1.0 - p.leak_o)   # LOX that reaches the injector (a leak loses the rest)
+    m_fe = m_f * (1.0 - p.leak_f)   # fuel that reaches the cooling channels
     root_t = math.sqrt(t_w)
     a_tfv, a_tov = valve_area(s[X_TFV], p), valve_area(s[X_TOV], p)
     # Bleed conductances: choked flow m = k * area * p_RC / sqrt(T_w).
@@ -70,18 +74,18 @@ def algebraic(s: list[float], p: Params) -> dict:
     for _ in range(2):
         qa = s_tot * p.r_inj
         qb = 1.0 + s_tot * kc
-        qc = m_f - s_tot * kc * m_o
+        qc = m_fe - s_tot * kc * m_oc
         if qa > 1e-12:
             disc = max(qb * qb + 4.0 * qa * qc, 0.0)
             m_inj = (-qb + math.sqrt(disc)) / (2.0 * qa)
         else:
             m_inj = qc / qb
         m_inj = max(m_inj, 1e-6)
-        kc = p.kc * cstar_factor(m_o / m_inj, p)
-    p_cc = kc * (m_o + m_inj)
+        kc = p.kc * cstar_factor(m_oc / m_inj, p)
+    p_cc = kc * (m_oc + m_inj)
     p_rc = p_cc + p.r_inj * m_inj * m_inj
     m_tf, m_to, m_bpv = s_f * p_rc, s_o * p_rc, s_b * p_rc
-    m_rc = m_f - p.m_byp
+    m_rc = m_fe - p.m_byp
     # Turbine torque of an impulse turbine: proportional to flow times (jet speed - blade speed);
     # the jet speed scales with sqrt(T_w) and weakly with the pressure ratio to the vent.
     jet = root_t * math.sqrt(max(1.0 - (p.p_vent / max(p_rc, p.p_vent + 1e-3)) ** p.isen_exp, 0.0))
@@ -92,7 +96,7 @@ def algebraic(s: list[float], p: Params) -> dict:
     tq_po = m_o * dp_o * 1e5 / (p.rho_lox * p.eta_po * max(s[W_O], 1.0))
     tq_pf = m_f * dp_f * 1e5 / (p.rho_lng * p.eta_pf * max(s[W_F], 1.0))
     q_wall = p.q_ref * (max(p_cc, 1.0) / p.p_ref) ** p.q_exp * (1.0 + p.k_tlng * (s[T_LNG] - p.t_lng_ref) / 100.0)
-    return dict(m_inj=m_inj, p_cc=p_cc, p_rc=p_rc, m_tf=m_tf, m_to=m_to, m_bpv=m_bpv, m_rc=m_rc,
+    return dict(m_inj=m_inj, m_oc=m_oc, m_fe=m_fe, p_cc=p_cc, p_rc=p_rc, m_tf=m_tf, m_to=m_to, m_bpv=m_bpv, m_rc=m_rc,
                 tq_tf=tq_tf, tq_to=tq_to, tq_po=tq_po, tq_pf=tq_pf, dp_o=dp_o, dp_f=dp_f, q_wall=q_wall)
 
 
@@ -108,8 +112,13 @@ def derivatives(s: list[float], u_tfv: float, u_tov: float, p: Params) -> tuple[
                                   abs(err) / p.valve_tau_pos), err)
         d[xi] = s[vi]
         d[vi] = max(-p.valve_amax, min(p.valve_amax, (v_des - s[vi]) / p.valve_tau))
-    d[W_O] = (a["tq_to"] - a["tq_po"]) / p.inertia_o
-    d[W_F] = (a["tq_tf"] - a["tq_pf"]) / p.inertia_f
+    if p.stuck_tfv:
+        d[X_TFV] = d[V_TFV] = 0.0
+    if p.stuck_tov:
+        d[X_TOV] = d[V_TOV] = 0.0
+    # A worn bearing adds friction: the pump needs (1 + drag) times its hydraulic torque.
+    d[W_O] = (a["tq_to"] - a["tq_po"] * (1.0 + p.drag_o)) / p.inertia_o
+    d[W_F] = (a["tq_tf"] - a["tq_pf"] * (1.0 + p.drag_f)) / p.inertia_f
     d[M_O] = (p.p_tank_o + a["dp_o"] - (a["p_cc"] + p.r_o * s[M_O] * abs(s[M_O]))) / p.l_o
     p_f_req = a["p_rc"] + p.r_rc * a["m_rc"] * abs(a["m_rc"])
     d[M_F] = (p.p_tank_f + a["dp_f"] - p_f_req) / p.l_f
@@ -123,7 +132,8 @@ def outputs(s: list[float], p: Params, a: dict | None = None) -> dict:
     """Physical outputs a test bench would measure (before sensor dynamics and noise)."""
     a = a or algebraic(s, p)
     return dict(
-        p_cc=a["p_cc"], rof=s[M_O] / a["m_inj"], m_lox=s[M_O], m_lng=s[M_F], m_inj=a["m_inj"],
+        p_cc=a["p_cc"], rof=a["m_oc"] / a["m_inj"], m_lox=s[M_O], m_lng=s[M_F], m_inj=a["m_inj"],
+        m_leak_o=s[M_O] - a["m_oc"], m_leak_f=s[M_F] - a["m_fe"],
         m_rc=a["m_rc"], t_rc=s[T_W], t_lng=s[T_LNG], n_otp=s[W_O] * RPM, n_ftp=s[W_F] * RPM,
         p_rc=a["p_rc"], m_tf=a["m_tf"], m_to=a["m_to"], m_bpv=a["m_bpv"], q_wall=a["q_wall"],
         x_tfv=s[X_TFV], x_tov=s[X_TOV],
@@ -163,6 +173,10 @@ class EngineModel:
             while self._queue and self._queue[0][0] <= self.t + 1e-12:
                 _, ut, uo = self._queue.pop(0)
                 self._u = (ut, uo)
+            if p.stuck_tfv:
+                s[V_TFV] = 0.0
+            if p.stuck_tov:
+                s[V_TOV] = 0.0
             d, a = derivatives(s, self._u[0], self._u[1], p)
             # Semi-implicit update: velocities first, then positions with the new velocities.
             s[V_TFV] += self.dt * d[V_TFV]

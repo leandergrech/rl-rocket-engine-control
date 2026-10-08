@@ -2,8 +2,9 @@
 
     python scripts/make_lab_data.py
 
-model.json holds the calibrated surrogate parameters, the trim table, the PI gains, the calibration
-targets and fit (for the model card) and step responses of the surrogate. Trained actors are copied
+model.json holds the calibrated surrogate parameters, the trim table, the PI gains and loop models (for
+the bandwidth design), the malfunctions and the seven test-case scenarios, the calibration targets and fit
+(for the model card) and step responses of the surrogate. Trained actors are copied
 from data/policies/ to docs/assets/lab/policies/ (loaded only when a Lab preset needs them).
 """
 
@@ -20,7 +21,8 @@ sys.path.insert(0, str(ROOT / "src"))
 from rl_rocket_engine.surrogate import calibrate  # noqa: E402
 from rl_rocket_engine.surrogate.env import TRIM_FILE  # noqa: E402
 from rl_rocket_engine.surrogate.params import CALIBRATED, DEFAULT_PARAMS  # noqa: E402
-from rl_rocket_engine.surrogate.pi import GAINS_FILE  # noqa: E402
+from rl_rocket_engine.surrogate.faults import KINDS, SCENARIOS_FILE  # noqa: E402
+from rl_rocket_engine.surrogate.pi import GAINS_FILE, default_bandwidth, identify_loops  # noqa: E402
 
 OUT = ROOT / "docs" / "assets" / "lab"
 
@@ -28,6 +30,8 @@ OUT = ROOT / "docs" / "assets" / "lab"
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     cal = json.loads(CALIBRATED.read_text())
+    gains = json.loads(GAINS_FILE.read_text())
+    loops = gains.get("loops") or identify_loops()
     steps = {}
     for valve in ("TFV", "TOV"):
         t, tr = calibrate.step_response(DEFAULT_PARAMS, valve, duration=40.0, dt_out=0.1)
@@ -37,6 +41,10 @@ def main() -> None:
         "params": DEFAULT_PARAMS.to_dict(),
         "trim": json.loads(TRIM_FILE.read_text()),
         "pi_gains": json.loads(GAINS_FILE.read_text())["gains"],
+        "pi_loops": loops,
+        "pi_bandwidth": default_bandwidth(loops),
+        "faults": {k: dict(label=v[0], part=v[1], mag=v[2], unit=v[3]) for k, v in KINDS.items()},
+        "scenarios": json.loads(SCENARIOS_FILE.read_text())["scenarios"],
         "calibration": {"report": cal["report"], "targets": cal["targets"]},
         "steps": steps,
     }

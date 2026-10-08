@@ -135,8 +135,8 @@ From the LUMEN Control Challenge organisers, October 2026 ([personal communicati
 | Topic | Answer | What it changes here |
 |---|---|---|
 | Release and terms | A repository around the end of October 2026. Results and code may be published, citing DLR's benchmark publication and contacting the organisers first. DLR plans an overview paper of all methods. | Plan the first paper so it can join that overview. |
-| Control rate, episodes | 20 Hz; 10–100 s per episode, depending on the control problem. | The surrogate steps at 10 Hz and should move to 20 Hz. |
-| Preview | No future set points in the observation; targets are generated in real time. | The surrogate's preview runs become an ablation; [open question 5](06-open-questions.md#5-anticipation-without-preview-delays-and-action-design-for-the-22-task) is now about anticipation without preview. |
+| Control rate, episodes | 20 Hz; 10–100 s per episode, depending on the control problem. | The surrogate now runs at 20 Hz, and PPO and SAC are retrained for it ([baselines](04a-surrogate-baselines.md#results-20-hz)). |
+| Preview | No future set points in the observation; targets are generated in real time. | The retrained agents have no preview; the earlier preview runs remain as an ablation; [open question 5](06-open-questions.md#5-anticipation-without-preview-delays-and-action-design-for-the-22-task) is now about anticipation without preview. |
 | Data | No real hot-fire data (export control). The sim-to-real test cases change model parameters. | Adaptation is scored against known parameter shifts; real valve behaviour stays out of reach. |
 | Compute | No EcosimPro licence needed. About real time, with parallel instances. DLR's training took one to seven days per problem. | Budget for vectorised environments; [model-based RL](06-open-questions.md#2-model-based-rl-for-a-slow-simulator-mbpo-style-test-cases-12) gains weight. |
 
