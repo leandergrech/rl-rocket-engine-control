@@ -252,9 +252,17 @@
         "). Open TOV and watch the flame turn bluer as the mixture ratio rises; open TFV and the pressure rises while the mixture ratio falls and the flame turns orange. Flame, steam and colours are coarse guesses; the ",
         el("a", { href: root + "primer/8-lab/" }, "Engine Lab"), " replays whole episodes on the same stand."));
     const stand = window.ReStand.create(holder, { state: "run", maxHeight: 380, runLabel: "steady state" });
+    // the button's icon: play to ignite, a stop square to shut down
+    function label(btn, ignite) {
+      const s = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      s.setAttribute("viewBox", "0 0 24 24"); s.setAttribute("aria-hidden", "true"); s.setAttribute("class", "hud-ic");
+      s.innerHTML = ignite ? '<path d="M8 5.6v12.8a.9.9 0 0 0 1.4.75l9.6-6.4a.9.9 0 0 0 0-1.5L9.4 4.85A.9.9 0 0 0 8 5.6z" fill="currentColor" stroke="none"/>' : '<rect x="6.5" y="6.5" width="11" height="11" rx="2" fill="currentColor" stroke="none"/>';
+      btn.replaceChildren(s, document.createTextNode(ignite ? " Ignite" : " Shut down"));
+    }
+    label(fire, false);
     fire.addEventListener("click", () => {
-      if (stand.state === "run" || stand.state === "ignition" || stand.state === "spinup") { stand.shutdown(); fire.textContent = "▶ Ignite"; }
-      else { stand.ignite(); fire.textContent = "Shut down"; }
+      if (stand.state === "run" || stand.state === "ignition" || stand.state === "spinup") { stand.shutdown(); label(fire, true); }
+      else { stand.ignite(); label(fire, false); }
     });
     function update() {
       s = m.steadyState(u[0], u[1], p, s);

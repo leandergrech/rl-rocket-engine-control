@@ -27,9 +27,11 @@ CHROME = next((c for c in ("google-chrome", "chromium", "chromium-browser") if s
 POLICIES = sorted(p for p in (ROOT / "data" / "policies").glob("*.json") if not p.name.endswith(".train.json"))
 
 HARNESS = """<!doctype html><html><body><pre id="out"></pre>
+<script>window.__errors = []; addEventListener("error", (e) => window.__errors.push(String(e.message)));</script>
 <script src="{js}"></script>
 <script src="{stand}"></script>
 <div id="stand" style="width:900px"></div>
+<div id="stand2" style="width:600px"></div>
 <script>
 const F = {fixture};
 const M = window.LumenModel, p = F.params, trim = new M.TrimTable(F.trim);
@@ -49,11 +51,29 @@ try {{
     res.policies[name] = rows;
   }}
   // the test-stand graphic runs through a whole sequence without throwing
-  const st = window.ReStand.create(document.getElementById("stand"), {{state: "off"}});
-  st.setRow(Object.assign({{}}, M.outputs(M.steadyState(0.3, 0.21, p), p), {{t: 0, p_ref: 40, rof_ref: 3.4, violations: {{rof: true}}}}));
+  res.status = [];
+  const st = window.ReStand.create(document.getElementById("stand"), {{state: "off", hud: true, onStatus: (x) => res.status.push(x.state)}});
+  st.setRow(Object.assign({{}}, M.outputs(M.steadyState(0.3, 0.21, p), p), {{t: 0, p_ref: 40, rof_ref: 3.4, u_tfv: 0.32, u_tov: 0.2, p_meas: 39.9, rof_meas: 3.41, violations: {{rof: true}}}}));
   st.ignite(); res.stand = [st.state]; st.setState("run"); st.shutdown(); res.stand.push(st.state);
+  // every layer, the control loop, perturbation tags, callouts, pulses and the zoom draw without throwing
+  st.setState("run");
+  st.setView({{insets: {{l: 120, r: 120, t: 40, b: 60}}, focus: {{x0: 150, x1: 905, y0: 0, y1: 398, v: 0.6}}}});
+  st.setLayers({{parts: true, flows: true, signals: true, callouts: true}});
+  st.setController({{label: "PI", kind: "fb", color: "#1baf7a"}});
+  st.setPerturb({{heat: 1.1, tf: 0.95, to: 0.95, delay: 0.15, delay0: 0.05, sensorDelay: false, noise: false}});
+  st.callout("sp", "Set-point step", "PI has to follow", "chamber"); st.callout("lim", "Limit", "", "hot", {{color: "#e34948"}});
+  st.pulse(); st.zoomBy(1.6); res.zoom = st.zoom; st.setValveDrag(() => {{}});
+  st.advance(1.0);  // thirty frames with all of the above on screen
+  res.badge = st.status().text;
+  // a second stand, ignited: its start-up sequence only advances if animation frames really run
+  const st2 = window.ReStand.create(document.getElementById("stand2"), {{state: "off"}});
+  st2.setRow(Object.assign({{}}, M.outputs(M.steadyState(0.3, 0.21, p), p), {{t: 0, violations: {{}}}}));
+  st2.ignite(); st2.advance(1.5); res.later = st2.state;
 }} catch (e) {{ res.error = String(e.stack || e); }}
-document.getElementById("out").textContent = JSON.stringify(res);
+setTimeout(() => {{
+  res.errors = window.__errors;
+  document.getElementById("out").textContent = JSON.stringify(res);
+}}, 1500);
 </script></body></html>"""
 
 VALVES = [(0.30, 0.21), (0.45, 0.30), (0.25, 0.15)]
@@ -69,7 +89,7 @@ def browser(tmp_path_factory):
     page = tmp_path_factory.mktemp("lab") / "harness.html"
     stand = ROOT / "docs" / "javascripts" / "teststand.js"
     page.write_text(HARNESS.format(js=JS.as_uri(), stand=stand.as_uri(), fixture=json.dumps(fixture)))
-    cmd = [CHROME, "--headless=new", "--no-sandbox", "--disable-gpu", "--allow-file-access-from-files",
+    cmd = [CHROME, "--headless=new", "--no-sandbox", "--disable-gpu", "--allow-file-access-from-files", "--window-size=1200,2000",
            "--virtual-time-budget=60000", "--dump-dom", page.as_uri()]
     html = subprocess.run(cmd, capture_output=True, text=True, timeout=300).stdout
     start, end = html.index('<pre id="out">') + len('<pre id="out">'), html.index("</pre>")
@@ -80,6 +100,15 @@ def browser(tmp_path_factory):
 
 def test_test_stand_runs_a_sequence(browser):
     assert browser["stand"] == ["spinup", "shutdown"]
+    assert browser["status"][0] == "off" and browser["status"][-1] == "run"  # reported to the page as it changes
+
+
+def test_test_stand_layers_draw_without_errors(browser):
+    # 1.5 s of animation frames with every layer on, a zoom, callouts and perturbation tags
+    assert browser["errors"] == []
+    assert browser["zoom"] > 1.5
+    assert browser["later"] == "ignition"  # GN2 spin-up lasts 1 s, then 1.6 s of pressure rise
+    assert "ROF" in browser["badge"]  # the violated limit is named in the status badge
 
 
 def test_steady_states_agree(browser):
