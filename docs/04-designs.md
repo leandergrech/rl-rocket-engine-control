@@ -28,7 +28,7 @@ The training column on one scale: every published agent used between 10⁵ and 5
 ```vegalite
 {
   "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
-  "title": {"text": "Environment steps used to train each agent", "subtitle": "Log scale. Sources: arXiv:2006.11108 Table III; SP2020_533 Table 3; thesis Table 5.3 and p. 104"},
+  "title": {"text": "Environment steps used to train each agent", "subtitle": "Log scale. Solid line: ≈ 4 × 10⁴ steps per hour at the thesis rate; dashed: ≈ 6 × 10⁵ per hour on the challenge simulator ×8. Sources: arXiv:2006.11108 Table III; SP2020_533 Table 3; thesis Table 5.3 and p. 104"},
   "width": "container", "height": 190,
   "layer": [
     {"data": {"values": [
@@ -45,16 +45,12 @@ The training column on one scale: every published agent used between 10⁵ and 5
        {"mark": {"type": "text", "align": "left", "dx": 9},
         "encoding": {"y": {"field": "agent", "type": "nominal", "sort": null}, "x": {"field": "steps", "type": "quantitative"}, "text": {"field": "label"}}}
      ]},
-    {"data": {"values": [{"x": 42000}]},
-     "layer": [
-       {"mark": {"type": "rule", "strokeWidth": 2, "color": "var(--viz-s2)"}, "encoding": {"x": {"field": "x", "type": "quantitative"}}},
-       {"mark": {"type": "text", "align": "right", "dx": -5, "y": -6, "text": "≈ 4 × 10⁴ per hour, thesis rate"}, "encoding": {"x": {"field": "x", "type": "quantitative"}}}
-     ]},
-    {"data": {"values": [{"x": 576000}]},
-     "layer": [
-       {"mark": {"type": "rule", "strokeWidth": 2, "strokeDash": [5, 3], "color": "var(--viz-s2)"}, "encoding": {"x": {"field": "x", "type": "quantitative"}}},
-       {"mark": {"type": "text", "align": "left", "dx": 5, "y": -6, "text": "≈ 6 × 10⁵ per hour, challenge simulator ×8"}, "encoding": {"x": {"field": "x", "type": "quantitative"}}}
-     ]}
+    {"data": {"values": [{"x": 42000, "what": "≈ 4 × 10⁴ steps per hour, thesis rate"}]},
+     "mark": {"type": "rule", "strokeWidth": 2, "color": "var(--viz-s2)"},
+     "encoding": {"x": {"field": "x", "type": "quantitative"}, "tooltip": [{"field": "what", "title": "one hour of compute"}]}},
+    {"data": {"values": [{"x": 576000, "what": "≈ 6 × 10⁵ steps per hour, challenge simulator ×8"}]},
+     "mark": {"type": "rule", "strokeWidth": 2, "strokeDash": [5, 3], "color": "var(--viz-s2)"},
+     "encoding": {"x": {"field": "x", "type": "quantitative"}, "tooltip": [{"field": "what", "title": "one hour of compute"}]}}
   ]
 }
 ```

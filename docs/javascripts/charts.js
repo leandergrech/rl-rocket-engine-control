@@ -52,11 +52,42 @@
     return node;
   }
 
+  // Split text into lines no wider than max pixels in the given CSS font.
+  let measure;
+  function wrap(text, font, max) {
+    measure = measure || document.createElement("canvas").getContext("2d");
+    measure.font = font;
+    const lines = [];
+    let line = "";
+    for (const word of [].concat(text).join(" ").split(/\s+/)) {
+      const next = line ? line + " " + word : word;
+      if (line && measure.measureText(next).width > max) {
+        lines.push(line);
+        line = word;
+      } else line = next;
+    }
+    if (line) lines.push(line);
+    return lines;
+  }
+
+  // A container-width chart counts its title in its width, so a one-line subtitle wider than
+  // the page squeezes the plot, to nothing on a phone. Wrap title and subtitle to fit instead.
+  function fitTitle(spec, width, cfg) {
+    const max = width - cfg.padding.left - cfg.padding.right - 4;
+    if (!spec.title || max < 100) return spec;
+    const t = typeof spec.title === "string" ? { text: spec.title } : { ...spec.title };
+    t.text = wrap(t.text, `${cfg.title.fontWeight} ${cfg.title.fontSize}px ${cfg.font}`, max);
+    if (t.subtitle) t.subtitle = wrap(t.subtitle, `${cfg.title.subtitleFontSize}px ${cfg.font}`, max);
+    return { ...spec, title: t };
+  }
+
   async function draw(el) {
-    const spec = resolveVars(specs.get(el));
+    if (document.fonts) await document.fonts.ready;  // measure titles in the page's own font
+    const cfg = config();
+    const spec = fitTitle(resolveVars(specs.get(el)), el.clientWidth, cfg);
     el.innerHTML = "";
     try {
-      await vegaEmbed(el, spec, { config: config(), actions: false, renderer: "svg", tooltip: { theme: "custom" } });
+      await vegaEmbed(el, spec, { config: cfg, actions: false, renderer: "svg", tooltip: { theme: "custom" } });
     } catch (err) {
       el.textContent = "Chart failed to render: " + err.message;
     }
@@ -74,6 +105,17 @@
 
   new MutationObserver(() => document.querySelectorAll("div.viz").forEach(draw))
     .observe(document.body, { attributes: true, attributeFilter: ["data-md-color-scheme"] });
+
+  // Re-wrap the titles when the page width changes, e.g. when a phone is turned.
+  let pageWidth = window.innerWidth, resized;
+  window.addEventListener("resize", () => {
+    clearTimeout(resized);
+    resized = setTimeout(() => {
+      if (Math.abs(window.innerWidth - pageWidth) < 40) return;
+      pageWidth = window.innerWidth;
+      document.querySelectorAll("div.viz").forEach(draw);
+    }, 250);
+  });
 
   if (typeof document$ !== "undefined") document$.subscribe(renderAll);
   else document.addEventListener("DOMContentLoaded", renderAll);
