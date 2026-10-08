@@ -205,7 +205,7 @@ The positive side, in the author's summary: control was successful "even in the 
     - The thesis trained at "about one million training steps per day" on 10 parallel EcosimPro instances ([p. 83](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=100)).
     - The hardware controller needed about 5 M steps and about 5 days to retrain ([p. 118](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=135)).
     - Domain randomisation doubled the training steps, from 1.5 M to 2.9 M ([Table 5.3](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=108)).
-    - The challenge's simulator runs at about real time, and several instances can run in parallel; DLR's own training took one to seven days per control problem ([organisers, Oct 2026](07-references.md#organisers2026)).
+    - The challenge's simulator runs at about real time, and several instances can run in parallel ([organisers, Oct 2026](07-references.md#organisers2026)).
     - *My extrapolation:* at 20 Hz and real time, one simulator instance gives about 7 × 10⁴ steps per CPU hour. A laptop running 8 instances gets about 6 × 10⁵ steps an hour: enough for SAC-sized runs, but a 3 M-step PPO run takes most of a working day.
 - **The benchmark data is not yet available.**
     - The "dataset for fine-tuning" and the "simulated sensor and system errors" ([RL4AA'25](https://indico.kit.edu/event/4216/contributions/19241/contribution.pdf)) have not been published. Nor has anything else ([§7.1](07-references.md#71-search-log-where-the-lumen-control-challenge-simulator-is-not)); a repository is expected around the end of October 2026 ([organisers](07-references.md#organisers2026)).
