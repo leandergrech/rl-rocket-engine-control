@@ -1,4 +1,8 @@
-# 4. Solution designs side by side
+---
+icon: re/results
+---
+
+# :re-results: 4. Solution designs side by side
 
 This page lines up every published controller for this problem class that I could read, in the same terms: architecture, observation and action, reward, training data, compute, results. Designs are grouped by how close they are to the LUMEN Control Challenge task, the 2×2 TFV/TOV tracking problem ([§1](01-problem.md)). None has been run in this repository. The challenge environment is not public ([§7.1](07-references.md#71-search-log-where-the-lumen-control-challenge-simulator-is-not)).
 
@@ -19,7 +23,7 @@ This page lines up every published controller for this problem class that I coul
 
 Sources and details for each row follow.
 
-The training column on one scale: every published agent used between 10⁵ and 5 × 10⁶ environment steps. The orange line marks what one laptop-CPU hour would buy at the thesis simulator's speed. That rate is my extrapolation from "about one million training steps per day" on 10 instances ([thesis p. 83](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=100)); the challenge simulator's speed is unknown.
+The training column on one scale: every published agent used between 10⁵ and 5 × 10⁶ environment steps. The orange lines mark what one hour of compute would buy. The left one uses the thesis simulator's speed, "about one million training steps per day" on 10 instances ([thesis p. 83](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=100)). The right one uses the challenge simulator: about real time ([organisers, Oct 2026](07-references.md#organisers2026)), at 20 Hz, with 8 instances on a laptop. Both are my extrapolations.
 
 ```vegalite
 {
@@ -44,7 +48,12 @@ The training column on one scale: every published agent used between 10⁵ and 5
     {"data": {"values": [{"x": 42000}]},
      "layer": [
        {"mark": {"type": "rule", "strokeWidth": 2, "color": "var(--viz-s2)"}, "encoding": {"x": {"field": "x", "type": "quantitative"}}},
-       {"mark": {"type": "text", "align": "left", "dx": 5, "y": -6, "text": "≈ 4 × 10⁴: one CPU hour (extrapolated)"}, "encoding": {"x": {"field": "x", "type": "quantitative"}}}
+       {"mark": {"type": "text", "align": "right", "dx": -5, "y": -6, "text": "≈ 4 × 10⁴ per hour, thesis rate"}, "encoding": {"x": {"field": "x", "type": "quantitative"}}}
+     ]},
+    {"data": {"values": [{"x": 576000}]},
+     "layer": [
+       {"mark": {"type": "rule", "strokeWidth": 2, "strokeDash": [5, 3], "color": "var(--viz-s2)"}, "encoding": {"x": {"field": "x", "type": "quantitative"}}},
+       {"mark": {"type": "text", "align": "left", "dx": 5, "y": -6, "text": "≈ 6 × 10⁵ per hour, challenge simulator ×8"}, "encoding": {"x": {"field": "x", "type": "quantitative"}}}
      ]}
   ]
 }
@@ -251,7 +260,7 @@ The only public information about controllers on the actual challenge environmen
 - **D4 SAC** on "the landing profile of the Apollo 15 mission … mapped into our combustion chamber pressure regime which goes from 40 to 80 bar". No numbers were shown in the captions.
 - **D5 curriculum PPO** ([RL4AA'26](https://indico.ph.liv.ac.uk/event/2025/contributions/10623/)). The operating envelope is expanded progressively during training. The authors say even the "2x2 configuration" suffers from sample inefficiency and instability "due to nonlinear, coupled dynamics and constraint-critical transients". No numbers in the abstract.
 
-**Implication.** The D4 lag is exactly what D1's 4-step reference preview addresses. D3 dropped the preview because a landing vehicle's thrust demand is not known in advance. For the challenge, whether the observation may include future references is a design choice worth asking DLR about ([§6](06-open-questions.md)).
+**Implication.** The D4 lag is exactly what D1's 4-step reference preview addresses. D3 dropped the preview because a landing vehicle's thrust demand is not known in advance. The challenge takes the same view: future references are not in the observation, because the targets are generated in real time ([organisers, Oct 2026](07-references.md#organisers2026)). Reducing the ramp lag without preview is therefore part of the task ([§6, question 5](06-open-questions.md#5-anticipation-without-preview-delays-and-action-design-for-the-22-task)).
 
 ## 4.5 D6–D8: earlier and side designs
 
@@ -291,5 +300,5 @@ The only public information about controllers on the actual challenge environmen
 ## 4.8 What this means for the challenge
 
 - The published state of the art for the full engine (D1, D3) uses **more actuators than the challenge gives you**. With only TFV and TOV, coolant flow and injection temperature become passive, and constraint satisfaction depends on the fixed openings of the other valves.
-- No 2×2 numbers are public (D4, D5). The first honest baseline set is therefore still to be produced: PI with decoupling, gain-scheduled PI, SAC/PPO with and without reference preview, and a model-based agent. [§6](06-open-questions.md) turns this into a plan. [Baselines on the surrogate](04a-surrogate-baselines.md) is a dry run of that set on this repo's stand-in engine; its numbers are not LUMEN's.
-- Compute is dominated by the simulator: about 1 M steps per day on 10 EcosimPro instances in the thesis. If the challenge simulator runs at a similar speed, a one-hour CPU budget buys on the order of 10⁴–10⁵ environment steps, well below the 1.5–5 M steps the DLR agents used. Sample efficiency is then not a nicety. This is my extrapolation; the challenge simulator's speed is unknown.
+- No 2×2 numbers are public (D4, D5). The first honest baseline set is therefore still to be produced: PI with decoupling, gain-scheduled PI, SAC and PPO without reference preview (preview only as an ablation, since the challenge excludes it), and a model-based agent. [§6](06-open-questions.md) turns this into a plan. [Baselines on the surrogate](04a-surrogate-baselines.md) is a dry run of that set on this repo's stand-in engine; its numbers are not LUMEN's.
+- Compute is dominated by the simulator. It ran at about 1 M steps per day on 10 EcosimPro instances in the thesis. The challenge simulator runs at about real time, in parallel instances; DLR's own training took one to seven days per control problem ([organisers, Oct 2026](07-references.md#organisers2026)). By my extrapolation, at 20 Hz a laptop with 8 instances buys about 6 × 10⁵ environment steps an hour. The DLR agents used 1.5–5 M steps. Sample efficiency is not a nicety.

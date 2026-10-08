@@ -7,9 +7,13 @@ icon: re/lab
 
 # :re-lab: The Engine Lab
 
-!!! abstract "What this is"
+<p class="lab-disclaimer"><b>Surrogate engine, not DLR's simulator</b> (which is not public): a reduced model calibrated to the gains, settling times and overshoot DLR publishes for LUMEN (<a href="#model-card">model card</a>). Use it to build intuition and test ideas, not to report a number about the challenge.</p>
 
-    The 2×2 task of the LUMEN Control Challenge, rebuilt on a **surrogate engine** that runs in your browser. TFV and TOV are the actions; chamber pressure and mixture ratio follow set points every 0.1 s, under the constraints of [thesis Table 5.1](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=96).
+<div class="re-widget re-lab" data-widget="lab" data-title="The Engine Lab"></div>
+
+??? abstract "What this is"
+
+    The 2×2 task of the LUMEN Control Challenge, rebuilt on a **surrogate engine** that runs in your browser. TFV and TOV are the actions; chamber pressure and mixture ratio follow set points every 0.1 s (the challenge itself runs at 20 Hz), under the constraints of [thesis Table 5.1](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=96).
 
     Presets are grouped by **who turns the knobs**:
 
@@ -20,23 +24,51 @@ icon: re/lab
 
     Every controller runs live on the engine you see, so when you perturb the engine the controllers react. The episode code is the same as the Python environment the agents were trained in.
 
-    **The surrogate is not DLR's simulator**, which is not public. It is a reduced model calibrated to the gains, settling times and overshoot DLR publishes for its LUMEN model ([model card](#model-card)). Use it to build intuition and test ideas, not to report a number about the challenge.
-
-<div class="re-widget re-lab" data-widget="lab" data-title="The Engine Lab"></div>
-
 ## How to use it
 
-- **Above: choose who turns the knobs.** The story under the presets explains what to look for.
-- **On the test stand** shows the episode on an animated LUMEN, fired horizontally out of DLR's P8.3 cell as in the photos of Traudt et al. ([IAC 2024](https://elib.dlr.de/213229/1/IAC-24,C4,1,5,x86850%20manuscript.pdf#page=3)). *Hot fire* plays the episode in real time (or 2× / 4×). With *start-up and shutdown* on, it opens with a GN2 spin-up of the turbopumps, laser ignition and a pressure rise of about 1.5 s, and ends with a shutdown and an LN2 purge; both durations follow the shape of DLR's hot-fire traces (IAC 2024, Fig. 5). The time slider, or hovering any plot, shows one moment.
-    - What moves with the simulation: chamber pressure, mixture ratio, pump speeds, valve openings, the flows in every line, the coolant and turbine-gas temperatures, and limit violations, which show as red outlines and in the badge.
-    - What is a coarse guess: the flame and everything around it. Plume length and brightness grow with pressure. The colour runs from orange when fuel-rich to violet-blue towards stoichiometric. Shock diamonds spread with pressure. The jet starts to separate inside the nozzle below about 38 bar, while the real nozzle is designed for no separation at 60 bar ([Deeken et al. 2021](https://elib.dlr.de/142128/1/Paper.pdf#page=6)). Orange afterburning tongues grow with fuel-richness, and steam rises from the spray ring.
-- **The side pane stays in view** while the plots scroll past it. From the top:
-    - *Set points*: the 40 s evaluation profile used in [Baselines on the surrogate](../04a-surrogate-baselines.md), a pressure ladder, mixture-ratio steps, or a random profile like the training ones.
-    - *Controller*: the PI gain multiplier, or in the sandbox your TFV and TOV sliders with *Play*.
-    - *Engine and sensors*: perturbations the controllers were not trained on. *Heat flux ×* scales the wall heat (the slow loop); *fuel turbine ×* and *LOX turbine ×* scale each turbine's torque (DLR randomised turbine efficiencies for the same reason); *valve dead time* is the parameter behind DLR's first failed hot-fire test. You can also switch off sensor delays and noise.
-    - *Outcome*: return, mean absolute percentage errors, constraint-violation steps and valve travel. **Pin** keeps a run as a grey line in every plot (up to three) and shows its scores in brackets.
-- **The plots:** chamber pressure and mixture ratio against their set points (dashed); valve commands (dashed) and positions; a constrained variable of your choice with its limit; the reward per step. Hover any plot for the values at that time, including what the controller read.
-- **Links can open the Lab in a given state**, for example `?preset=pi&heat=1.1`, `?preset=sac-preview&profile=rof&loxturbine=0.95`, `?preset=pi&delay=0.15&gain=1.5`, or `?sensors=ideal&noise=0`.
+- **The viewer is LUMEN on DLR's P8.3 test stand**, fired horizontally out of the open side of the cell as in the photos of Traudt et al. ([IAC 2024](https://elib.dlr.de/213229/1/IAC-24,C4,1,5,x86850%20manuscript.pdf#page=3)). On a wide screen the controls float over the scene; on a phone they sit under it. *Full screen* (the corner button, or <kbd>F</kbd>) works on both.
+    - **Every panel folds to its title.** Click a title to fold it away and again to bring it back. Folded panels show a one-line summary, such as the scores or "perturbed".
+    - **Information folds away too.** The buttons in the top-right corner open one card at a time. *Story* explains the preset. *Labels* switches the layers on the stand. *A–Z* spells out every acronym. *About* explains how to read the stand and lists the keys.
+- **Controller (left): choose who turns the knobs** and the set points:
+    - the 40 s evaluation profile used in [Baselines on the surrogate](../04a-surrogate-baselines.md);
+    - a pressure ladder;
+    - mixture-ratio steps;
+    - a random profile like the training ones.
+
+    Under PI you get the gain multiplier. In the sandbox you get TFV and TOV sliders with *Play*. You can also drag the valves on the stand, or use the arrow keys.
+- **Engine and sensors (left): perturbations the controllers were not trained on.**
+    - *Heat flux ×* scales the wall heat (the slow loop).
+    - *Fuel turbine ×* and *LOX turbine ×* scale each turbine's torque. DLR randomised turbine efficiencies for the same reason.
+    - *Valve dead time* is the parameter behind DLR's first failed hot-fire test.
+    - You can also switch off sensor delays and noise.
+
+    Every change shows on the stand as an amber :re-gear: tag at the part it affects.
+- **Telemetry (right)** has two dials, chamber pressure and mixture ratio:
+    - the needle is the engine;
+    - the orange triangle is the set point;
+    - the small tick is what the controller reads, late and noisy.
+
+    Bars show each constrained variable against its limit (the red mark). They turn amber within 5 % of the limit and red beyond it. Two small trends show the whole episode.
+- **Score (right)** shows the return, the mean absolute percentage errors (MAPE), the constraint-violation steps and the valve travel. **Pin** keeps a run as a grey line in every plot (up to three) and shows its scores in brackets.
+- **At the bottom, a narration line says what is happening:**
+    - a new set point and how the controller answers;
+    - which output is off target and which valve is moving;
+    - when the slow coolant temperature is still drifting;
+    - when a limit is crossed.
+
+    Below it, :re-play: *Hot fire* plays the episode in real time (or 2× / 4×). With *start-up and shutdown* on, it opens with a GN2 spin-up of the turbopumps, laser ignition and a pressure rise of about 1.5 s. It ends with a shutdown and an LN2 purge. Both durations follow the shape of DLR's hot-fire traces (IAC 2024, Fig. 5). The time slider, or hovering any plot under the viewer, shows one moment.
+- **On the stand:**
+    - **what moves with the simulation:** chamber pressure, mixture ratio, pump speeds (with a ring showing each pump's speed against its limit), valve openings (the dial, with the command as a tick), the flows in every line, the coolant moving back through the jacket, the coolant and turbine-gas temperatures, and limit violations, shown as pulsing red outlines;
+    - **the control loop:** the dashed wires from the sensor tap to the controller cabinet and on to the two valves carry one pulse per 0.1 s step;
+    - **callouts** mark the start-up phases, set-point steps and limits as they happen;
+    - **hover any part** (or tap it on a phone) for its name and live values. Zoom with the buttons, <kbd>+</kbd> / <kbd>−</kbd>, ctrl-scroll or a pinch, then drag to look around.
+    - **what is a coarse guess:** the flame and everything around it. Plume length and brightness grow with pressure. The colour runs from orange when fuel-rich to violet-blue towards stoichiometric. Shock diamonds spread with pressure. The jet starts to separate inside the nozzle below about 38 bar, while the real nozzle is designed for no separation at 60 bar ([Deeken et al. 2021](https://elib.dlr.de/142128/1/Paper.pdf#page=6)). Orange afterburning tongues grow with fuel-richness, and steam rises from the spray ring.
+- **The plots under the viewer:**
+    - chamber pressure and mixture ratio against their set points (dashed);
+    - valve commands (dashed) and positions;
+    - a constrained variable of your choice with its limit;
+    - the reward per step.
+- **Links can open the Lab in a given state**, for example `?preset=pi&heat=1.1`, `?preset=sac-preview&profile=rof&loxturbine=0.95`, `?preset=pi&delay=0.15&gain=1.5`, `?sensors=ideal&noise=0`, or `?preset=ppo-preview&play=1` to start the hot fire straight away.
 
 ## Guided experiments
 
@@ -45,7 +77,7 @@ Each takes a few minutes. Predict first, then look.
 1. **The slow channel.** Load the [TFV step](8-lab.md?preset=tfv_step) and the [TOV step](8-lab.md?preset=tov_step). *Predict:* which output settles first after TFV, and why? (Mixture ratio, in about 5 s: it depends on the ratio of the two flows, which the thermal sag changes less than their sum.)
 2. **Feedforward is not control.** Load [feedforward only](8-lab.md?preset=feedforward), then set *heat flux ×* to 1.1. The commands do not change, so the error stays. Now load [PI](8-lab.md?preset=pi&heat=1.1) with the same perturbation.
 3. **Where PI loses.** In [PI on the evaluation profile](8-lab.md?preset=pi), find the step at 27 s (50 → 38 bar while mixture ratio is held). *Predict* which output the PI gets wrong first. Pin the run, then load [PPO with preview](8-lab.md?preset=ppo-preview): what does it do with TOV *before* the step?
-4. **What preview is worth.** Load [SAC, preview](8-lab.md?preset=sac-preview), pin it, then [SAC, no preview](8-lab.md?preset=sac-nopreview). Where in the profile do the two differ, at steps or during ramps?
+4. **What preview is worth.** Load [SAC, preview](8-lab.md?preset=sac-preview), pin it, then [SAC, no preview](8-lab.md?preset=sac-nopreview). Where in the profile do the two differ, at steps or during ramps? The challenge gives no preview ([organisers, Oct 2026](../07-references.md#organisers2026)), so the difference is what a challenge entry has to make up by other means.
 5. **Break the valve model.** Raise *valve dead time* to 0.15 s under [PI](8-lab.md?preset=pi&delay=0.15), then under [PPO](8-lab.md?preset=ppo-preview&delay=0.15). Which one starts to oscillate, and in which output? This is the failure mode of DLR's first hot-fire test ([Valves are the actuators](3-valves.md#where-sim-to-real-broke)).
 6. **Gain margin.** Under [PI](8-lab.md?preset=pi&gain=2), double the gains. Then halve them. Which loop is limited by the delay and which by the slow heat?
 7. **Watch it burn.** Load [PPO with preview on the mixture-ratio steps](8-lab.md?preset=ppo-preview&profile=rof) and press *Hot fire*. *Predict* the flame colour at each step before it comes: 3.8 is the bluest, 3.0 the most orange. Then load the [TFV step](8-lab.md?preset=tfv_step) and watch the plume grow, overshoot and sag while the coolant line cools.

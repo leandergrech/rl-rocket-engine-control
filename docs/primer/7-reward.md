@@ -70,7 +70,8 @@ Three deliberate differences:
 
     - **The reward is the spec.** Exponential tracking with $\delta$ = 12 costs −0.11 per output at 1 % error and −0.45 at 5 %, against −1 for a total miss. Most of the slope is in the first few percent, which is where the agent learns precision.
     - **Constant penalties are cliffs.** A violation costs the same at 4.01 as at 4.5 in mixture ratio. The agent learns where the cliff is, not how bad it is to fall off; graded penalties or termination change that.
-    - **Preview is a design decision of the benchmark.** Whether the challenge allows future set points in the observation is one of the questions in the [email to DLR](https://github.com/leandergrech/rl-rocket-engine-control/blob/main/docs/email-to-dlr.md). [The baselines](../04a-surrogate-baselines.md) measure what it is worth on the surrogate.
+    - **The challenge gives no preview.** Future set points are not in its observation, because on the real engine the targets are generated in real time ([organisers, Oct 2026](../07-references.md#organisers2026)). This repo keeps preview as a switch only to measure what it is worth: on the surrogate it halves the pressure error ([the baselines](../04a-surrogate-baselines.md)). That is the gap a challenge entry has to close by other means.
+    - **The challenge runs at 20 Hz**, twice this repo's rate (same source). The surrogate's 0.1 s step is the thesis's simulation setting; its environment should move to 0.05 s once the challenge is released.
 
 ??? question "Check yourself (click to open)"
 

@@ -2,11 +2,11 @@
 icon: re/primer
 ---
 
-# :re-primer: Domain primer: start here
+# :re-primer: 2. Domain primer: start here
 
 !!! abstract "In short"
 
-    - Nine short chapters take you from **the engine as a control system** to **the reward**, one physical idea each. They end in the **Engine Lab**, an in-browser, LUMEN-like surrogate engine on which a PI controller and trained PPO and SAC agents run live.
+    - Nine short chapters take you from **the engine as a control system** to **the reward**, one physical idea each. They build up to the **Engine Lab**, an in-browser, LUMEN-like surrogate engine on which a PI controller and trained PPO and SAC agents run live, and close with how real hot-fire tests and DLR's simulator work.
     - Every chapter follows the same pattern: a question, a picture you can play with, the equations, **what it means for the agent**, and a short self-check.
     - All equations live on one [equation sheet](primer/equations.md). Each entry says what DLR's LUMEN model does and what the surrogate does instead.
     - The physics in four lines:
@@ -72,7 +72,7 @@ This primer is the physics you need to read the LUMEN Control Challenge critical
 
     Everything above in one simulator. Presets show a schedule, PI, PPO and SAC, or you, turning the knobs. You can perturb the engine and compare runs.
 
--   :re-glossary:{ .lg .middle } **[Hot fire, simulators and glossary](primer/9-field.md)** and :re-sigma:{ .lg .middle } **[Equation sheet](primer/equations.md)**
+-   :re-hotfire:{ .lg .middle } **[Hot fire, simulators and glossary](primer/9-field.md)** and :re-sigma:{ .lg .middle } **[Equation sheet](primer/equations.md)**
 
     ---
 
@@ -88,7 +88,7 @@ Reading time is about ninety minutes with the widgets. If you only have twenty m
 
 ## The whole problem on one page
 
-Two valve commands go in every 0.1 s, and chamber pressure and mixture ratio come out. The chain between them, as LUMEN implements it (each box is covered in one of the chapters):
+Two valve commands go in every 0.05 s (20 Hz in the challenge; the surrogate on this site uses 0.1 s), and chamber pressure and mixture ratio come out. The chain between them, as LUMEN implements it (each box is covered in one of the chapters):
 
 ```mermaid
 flowchart TB

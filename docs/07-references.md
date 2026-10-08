@@ -1,4 +1,8 @@
-# 7. References
+---
+icon: re/books
+---
+
+# :re-books: 7. References
 
 Every source used anywhere on this site is listed here, with how far it was verified.
 
@@ -7,6 +11,7 @@ Every source used anywhere on this site is listed here, with how far it was veri
 | **V** | Full text opened and read (PDF downloaded and converted with `pdftotext`, or HTML page read). Numbers quoted on this site come from these. |
 | **A** | Abstract, bibliographic record or metadata only. The full text is paywalled, DLR-internal or behind a bot wall. Only what the abstract says is used. |
 | **U** | Unverified. The source exists according to secondary material, but I could not open a primary copy. Nothing from it is used as fact. |
+| **P** | Personal communication from the challenge organisers. Used for facts about the challenge that are not yet published; to be replaced by the released documentation. |
 
 ```vegalite
 {
@@ -45,7 +50,7 @@ flowchart LR
   Q["Where is the LUMEN<br/>Control Challenge simulator?"]
   Q --> C1["Code hosts<br/>GitHub search, 11 DLR orgs,<br/>author accounts, GitLab"]
   C1 --> RA["DLR-RA org<br/>created 2026-09-11, empty"]
-  C1 --> DX["DX'25 LUMEN benchmark<br/>simulator on request by email"]
+  C1 --> DX["DX'25 LUMEN benchmark<br/>simulator on request only"]
   Q --> V1["Video and events<br/>3 streams, bootcamp sites,<br/>3 Indico events"]
   Q --> A1["Archives<br/>Zenodo, elib, arXiv,<br/>OpenAlex, Crossref, ORCID"]
   Q --> P1["Packages<br/>PyPI, Hugging Face"]
@@ -58,7 +63,7 @@ flowchart LR
 
 | # | Place | What was checked | Result |
 |---|---|---|---|
-| 1 | [RL Bootcamp 2026 day-2 livestream](https://www.youtube.com/watch?v=CX8I88Pta_I&t=26280s), YouTube id `CX8I88Pta_I`, channel "Reinforcement Learning", streamed 2026-09-17 | Video description; English auto-captions (fetched with yt-dlp 2026.08.19); the slide at 7:18:00 | Description empty. The slide reads "Public access to generalized LUMEN simulator model" and "Automatic evaluation of your control performance". It gives kai.dresia@dlr.de plus two further `@dlr.de` contacts, partly hidden by the webcam overlay, and no URL. Captions at about 7:21:50: the DLR speaker says the team is "currently planning to make this benchmark more or less publicly available", has "some legal issues", hopes to solve them "within the next weeks", and asks interested people to email. |
+| 1 | [RL Bootcamp 2026 day-2 livestream](https://www.youtube.com/watch?v=CX8I88Pta_I&t=26280s), YouTube id `CX8I88Pta_I`, channel "Reinforcement Learning", streamed 2026-09-17 | Video description; English auto-captions (fetched with yt-dlp 2026.08.19); the slide at 7:18:00 | Description empty. The slide reads "Public access to generalized LUMEN simulator model" and "Automatic evaluation of your control performance". It names Kai Dresia plus two further DLR contacts, partly hidden by the webcam overlay, and gives no URL. Captions at about 7:21:50: the DLR speaker says the team is "currently planning to make this benchmark more or less publicly available", has "some legal issues", hopes to solve them "within the next weeks", and invites interested people to get in touch. |
 | 2 | Day-1 ([`Ll6P0E_uH58`](https://www.youtube.com/watch?v=Ll6P0E_uH58)) and day-3 ([`ajA_z1kem5w`](https://www.youtube.com/watch?v=ajA_z1kem5w)) streams | Auto-captions searched for LUMEN, rocket, DLR, propulsion | No mention. |
 | 3 | Bootcamp websites: [SARL-PLUS/RL-Bootcamp2026](https://github.com/SARL-PLUS/RL-Bootcamp2026) (site source), [SARL-PLUS/RL_Bootcamp_2026_tutorial](https://github.com/SARL-PLUS/RL_Bootcamp_2026_tutorial) (public slides), Indico [event 1701863](https://indico.cern.ch/event/1701863/) | Repository trees and pages searched for LUMEN, DLR, slides | No DLR slides or links. The Indico event requires a CERN login (not attempted). |
 | 4 | GitHub repository search | `LUMEN rocket`, `LUMEN engine`, `LUMEN simulator`, `lumen control challenge`, `rocket engine reinforcement learning`, `ecosimpro gymnasium`, `ESPSS`, repos created after 2026-08-15 | Only unrelated name clashes. |
@@ -70,7 +75,7 @@ flowchart LR
 | 10 | [Zenodo](https://zenodo.org) API | Free text, exact phrases, `creators.name:Dresia`, `Waxenegger-Wilfing` | Only an unrelated 2024 record (22 N thruster wall-temperature transfer learning). |
 | 11 | [elib.dlr.de](https://elib.dlr.de) | The search endpoint returned HTTP 429 on every attempt, so I read the year listings [`/view/year/2018.html`](https://elib.dlr.de/view/year/2018.html) … [`2026.html`](https://elib.dlr.de/view/year/2026.html) and grepped them | Found the benchmark item [elib 220065](https://elib.dlr.de/220065/) (no full text) and the 2023–2025 papers listed below. No simulator, dataset or software record. |
 | 12 | Indico [RL4AA'25](https://indico.kit.edu/event/4216/contributions/19241) and [RL4AA'26](https://indico.ph.liv.ac.uk/event/2025/contributions/10623/) | Export API over all contributions | One LUMEN talk per year, no attached material. |
-| 13 | DX'25 diagnosis competition: [LiU benchmark page](https://vehsys.gitlab-pages.liu.se/dx25benchmarks/lumen/lumen_index), [LiU GitLab `vehsys/dx25benchmarks`](https://gitlab.liu.se/vehsys/dx25benchmarks), [DX-2025 site](https://conf.researchr.org/home/dx-2025) | Page text and repository tree | A LUMEN fault-diagnosis benchmark (not control). Simulator and data are available only by email to eldin.kurudzija@dlr.de. The `lumen/` folder holds just the description page and 3 images, while the other two DX'25 benchmarks ship training data. This is the precedent for how DLR shares LUMEN models. |
+| 13 | DX'25 diagnosis competition: [LiU benchmark page](https://vehsys.gitlab-pages.liu.se/dx25benchmarks/lumen/lumen_index), [LiU GitLab `vehsys/dx25benchmarks`](https://gitlab.liu.se/vehsys/dx25benchmarks), [DX-2025 site](https://conf.researchr.org/home/dx-2025) | Page text and repository tree | A LUMEN fault-diagnosis benchmark (not control). Simulator and data are available only on request to the model's author, Eldin Kurudzija. The `lumen/` folder holds just the description page and 3 images, while the other two DX'25 benchmarks ship training data. This is the precedent for how DLR shares LUMEN models. |
 | 14 | arXiv API | `au:Dresia`, `au:Waxenegger`, `"rocket engine" AND "reinforcement learning"`, `LUMEN AND rocket` | Four Dresia papers 2019–2021; no benchmark paper. |
 | 15 | OpenAlex, Crossref, ORCID (Dresia 0000-0003-3229-5184, Waxenegger-Wilfing 0000-0001-5381-6431, Kurudzija 0000-0001-5409-3845, Dauer 0009-0005-7577-8209) | 2024–2026 works | Adds the SSRN preprint [Kurudzija et al. 2026](#kurudzija2026). No code or data record. |
 | 16 | PyPI (`lumen-env`, `lumen-gym`, `lumen-rl`, `lumen-control`, `lumen-challenge`, `lumen-benchmark`, `dlr-lumen`, `rocket-engine-gym`) and Hugging Face (models, datasets, spaces) | Package and hub search | All 404 / empty. |
@@ -79,11 +84,13 @@ flowchart LR
 | 19 | [Hirlaender publication list](https://mathphyssim.github.io/publications.html), [RWTH DSME colloquium 2023](https://www.dsme.rwth-aachen.de/cms/dsme/das-institut/aktuelle-veranstaltungen/~bajuon/dsme-colloquium-kai-dresia-on-fuel-effi/?mobile=1&lidx=1), [AI4Aerospace 2025 site](https://ai4aerospace25.sciencesconf.org/), [ESA ESPSS workshop 2025](https://indico.esa.int/event/580/contributions/11362/) | Entries and attachments | No links to code or data. |
 | 20 | Web search (several phrasings of "LUMEN Control Challenge", "LUMEN benchmark", "DLR rocket engine control benchmark") | Results pages | Nothing beyond the above. |
 
-**Conclusion (2026-09-30):** the LUMEN Control Challenge simulator and evaluation service are not publicly available. Two things point that way. The slide promises public access, while the speaker said on 2026-09-17 that legal issues were still being resolved. And the only comparable LUMEN release, DX'25, was shared on request by email. No repository, package or dataset exists yet. Access requires emailing DLR; see [the draft email](https://github.com/leandergrech/rl-rocket-engine-control/blob/main/docs/email-to-dlr.md).
+**Conclusion (2026-09-30):** the LUMEN Control Challenge simulator and evaluation service are not publicly available. Two things point that way. The slide promises public access, while the speaker said on 2026-09-17 that legal issues were still being resolved. And the only comparable LUMEN release, DX'25, was shared only on request. No repository, package or dataset existed on that date.
+
+**Update (2026-10-08):** the organisers expect to share the challenge repository around the end of October 2026 ([personal communication](#organisers2026)). `python scripts/check_challenge.py` watches for it.
 
 ## 7.2 LUMEN Control Challenge and benchmark
 
-<a id="bootcamp2026"></a>**RL Bootcamp 2026, day-2 livestream** (Salzburg, 16–18 Sep 2026). "Reinforcement Learning Live Stream", YouTube `CX8I88Pta_I`, streamed 2026-09-17, 33,041 s. The DLR pitch runs from about 7:10:20 to 7:22:40; the "LUMEN Control Challenge" slide appears at [7:18:00](https://www.youtube.com/watch?v=CX8I88Pta_I&t=26280s). **V** (auto-captions and slide read). The chair introduces the speaker as "Yonas" in the auto-captions. The brief I was given names Kai Dresia as presenter; Kai Dresia's address is the first contact on the slide, and Jonas Dauer is a co-author of the benchmark papers. The speaker's name is therefore not certain from public material. What the captions say, in paraphrase:
+<a id="bootcamp2026"></a>**RL Bootcamp 2026, day-2 livestream** (Salzburg, 16–18 Sep 2026). "Reinforcement Learning Live Stream", YouTube `CX8I88Pta_I`, streamed 2026-09-17, 33,041 s. The DLR pitch runs from about 7:10:20 to 7:22:40; the "LUMEN Control Challenge" slide appears at [7:18:00](https://www.youtube.com/watch?v=CX8I88Pta_I&t=26280s). **V** (auto-captions and slide read). The chair introduces the speaker as "Yonas" in the auto-captions. The brief I was given names Kai Dresia as presenter; Kai Dresia is the first contact on the slide, and Jonas Dauer is a co-author of the benchmark papers. The speaker's name is therefore not certain from public material. What the captions say, in paraphrase:
 
 - The benchmark wraps the simulator in a Gymnasium environment.
 - The actions are the commands to the TFV and TOV turbine valves.
@@ -92,6 +99,14 @@ flowchart LR
 - A PPO agent tracks 60 → 70 → 57 bar, lagging on ramps because future references are not in the observation and the valves have delay.
 - A SAC agent tracks an Apollo 15 landing thrust profile mapped to 40–80 bar.
 - A hardware video shows about 15 s of closed-loop tracking before a sensor failure ended the run.
+
+<a id="organisers2026"></a>**LUMEN Control Challenge organisers** (DLR Institute of Space Propulsion, Lampoldshausen). Personal communication to the author, 7 October 2026. **P**. Until the challenge documentation is released, this is the source for:
+
+- **Release and terms.** A repository is planned for around the end of October 2026. Results and code built on the simulator may be published, provided DLR's benchmark publication is cited and the organisers are contacted before publication. DLR will publish its own RL and MPC solutions and plans an overview paper that collects the participants' methods.
+- **Control rate and episodes.** 20 Hz, a rate an earlier study of control rates found sufficient (the [Dresia thesis](#dresia2025)). Episodes last 10–100 s, depending on the control problem.
+- **No preview.** Future reference values are not part of the observation, because on the real engine the targets are generated in real time.
+- **Data.** No real hot-fire data is published (export control). The sim-to-real test cases instead change model parameters.
+- **Compute.** No local EcosimPro licence is needed. The simulator runs at about real time (10 s of engine time takes about 10 s), and several instances can run in parallel. DLR's own training took one to seven days, depending on the control problem.
 
 <a id="dresia2025rl4aa"></a>**Dresia, K., Waxenegger-Wilfing, G., Dauer, J., Hirlaender, S., Bareiß, V.** "A Benchmark for Deep Reinforcement Learning-Based Control of Liquid-Propellant Rocket Engines". RL4AA'25, DESY Hamburg, 4 Apr 2025, poster + talk. [Indico contribution](https://indico.kit.edu/event/4216/contributions/19241), [PDF](https://indico.kit.edu/event/4216/contributions/19241/contribution.pdf). **V**. The benchmark "includes simulation software calibrated with experimental data, a dataset for fine-tuning, and the ability to simulate representative errors in both sensors and the system itself" and "will be made freely accessible to the RL community".
 

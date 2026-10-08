@@ -1,4 +1,8 @@
-# 6. Open questions I could attack
+---
+icon: re/idea
+---
+
+# :re-idea: 6. Open questions I could attack
 
 The questions are ranked by expected value to the field, times how well they fit my background (sparse noisy sensors, expensive real steps, SB3/Gymnasium tooling, RL4AA), times how soon they could produce a result. Everything here needs the LUMEN Control Challenge environment. None of it needs the real engine. Effort estimates count from the day access is granted, assuming about 50 % of my research time; they are my guesses.
 
@@ -6,7 +10,7 @@ How the questions build on each other. Question 5 produces the wrappers, metrics
 
 ```mermaid
 flowchart TB
-  Q5["5 · preview, delays, action design<br/>baseline set"] --> Q3["3 · residual RL on PI"]
+  Q5["5 · anticipation without preview,<br/>delays, action design; baselines"] --> Q3["3 · residual RL on PI"]
   Q5 --> Q2["2 · model-based RL"]
   Q5 --> Q4["4 · fault tolerance"]
   Q3 --> Q7["7 · safe fallback"]
@@ -24,7 +28,7 @@ flowchart TB
     {"q": "2 · model-based RL", "lo": 2, "hi": 3, "start": "later", "note": "most of it on the ensemble model"},
     {"q": "3 · residual RL on PI", "lo": 2, "hi": 2, "start": "later", "note": "about 2 months"},
     {"q": "4 · fault tolerance", "lo": 3, "hi": 5, "start": "later", "note": "risk: two faults may be too easy or too hard"},
-    {"q": "5 · preview, delays, actions", "lo": 1, "hi": 1.5, "start": "start here", "note": "4-6 weeks; builds the shared tooling"},
+    {"q": "5 · anticipation, delays, actions", "lo": 1, "hi": 1.5, "start": "start here", "note": "4-6 weeks; builds the shared tooling"},
     {"q": "6 · slow drift", "lo": 3, "hi": 3, "start": "later", "note": "better done as an extension of question 1"},
     {"q": "7 · safe fallback", "lo": 2, "hi": 3, "start": "later", "note": "after question 3"}
   ]},
@@ -48,6 +52,7 @@ flowchart TB
 - DLR's only hardware result is zero-shot: the policy was trained with domain randomisation and deployed without fine-tuning. It lost a factor of about 3 in tracking error, from 0.4–0.5 % in simulation to 1.3 % on the engine ([thesis Table 6.2](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=130)).
 - The model–plant mismatch on that run reached 10.6 % ([Table 6.3](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=131)), larger than the ±1–10 % randomisation ranges.
 - The benchmark explicitly ships "a dataset for fine-tuning" ([RL4AA'25](https://indico.kit.edu/event/4216/contributions/19241/contribution.pdf)) and a test case where the target domain is unknown ([AI4Aerospace 2025, p. 56](https://w3.onera.fr/ailab/sites/default/files/2025-06/abstractsAI4A5thworkshop_external.pdf#page=56)). No published method on this plant uses target-domain data at all.
+- The target domains are simulated: the test cases change model parameters, and no real hot-fire data is released ([organisers, Oct 2026](07-references.md#organisers2026)). That makes the question clean, because the true parameter shift is known to the organisers and can be scored. It also means the result says nothing yet about real-engine data.
 
 **What a first paper would show.** On test case 4, compare four ways of spending a fixed, small budget of target-domain data:
 
@@ -67,7 +72,7 @@ Report tracking error and constraint violations against the amount of target dat
 **Why it is open.**
 
 - DLR's agents needed 1.5 M steps nominally, 2.9 M with domain randomisation ([Table 5.3](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=108)) and about 5 M for the hardware controller.
-- They trained at about 1 M steps per day on 10 EcosimPro instances ([p. 83](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=100)).
+- They trained at about 1 M steps per day on 10 EcosimPro instances ([p. 83](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=100)). The challenge simulator runs at about real time, and DLR's training took one to seven days per control problem ([organisers, Oct 2026](07-references.md#organisers2026)).
 - The only model-based controller on LUMEN is the MPC with a Wiener model. It lost to SAC on tracking and constraints ([Table 5.4](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=114)).
 - No Dyna/MBPO/Dreamer-class result exists for liquid-rocket-engine control.
 - The plant is multi-time-scale: oxidiser-side responses under 1 s, fuel-side thermal responses up to 23.8 s ([Table 4.7](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=91)). That is a hard test for short-rollout model-based methods.
@@ -130,18 +135,19 @@ Claim to test: residual RL recovers most of pure RL's tracking advantage with a 
 
 **Effort.** 3–5 months. There is risk if the two benchmark faults are too easy or too hard to recover from with two valves.
 
-## 5. Reference preview, delays and action parametrisation for the 2×2 task
+## 5. Anticipation without preview, delays and action design for the 2×2 task
 
 **Why it is open.**
 
 - The bootcamp PPO agent lagged on ramps. The speaker attributed this to missing future references and valve delay ([livestream](https://www.youtube.com/watch?v=CX8I88Pta_I&t=26100s)).
 - DLR's simulated agent with a 4-step preview reached 0.3 % / 0.1 % ([thesis p. 93](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=110)). The hardware controller had no preview.
+- **The challenge has no preview either**: its targets are generated in real time, at 20 Hz ([organisers, Oct 2026](07-references.md#organisers2026)). On this repo's surrogate, preview halves the pressure error ([baselines](04a-surrogate-baselines.md)). How much of that can be won back without seeing the future is an open question.
 - DLR's cold-gas controller used valve *rate* as the action, capped at 5 % per step ([Hörger et al. 2024, p. 4](https://elib.dlr.de/207225/1/Final_Acta_Astronautica.pdf#page=4)).
 - Nobody has published a controlled ablation of these choices on one plant.
 
 **What a first paper would show.** A grid over three choices, with tracking error, lag on ramps, Δu and constraint violations for each:
 
-- preview horizon: 0, 2, 4, 8 steps;
+- anticipation without preview: none; the set point's recent rate of change; a learned predictor of the reference from its history; with preview at 2, 4 and 8 steps kept as an upper bound;
 - action type: absolute position vs rate;
 - delay handling: stacking vs explicit delay states vs a recurrent policy.
 
@@ -188,4 +194,4 @@ The threshold rule is the one DLR used for its detector ([Dauer et al. 2025, p. 
 ## What I cannot do from outside DLR
 
 - **Hardware validation.** Anything above needs DLR as a partner to reach the engine. The benchmark's likely withheld-simulator evaluation, as in the [DX'25 design](https://elib.dlr.de/219953/1/DX2025benchmark.pdf#page=9), is the best available proxy.
-- **Actuator-model errors.** These broke the first two hardware deployments and cannot be studied without real valve data. The question to put to DLR: does the fine-tuning dataset include valve command/position pairs?
+- **Actuator-model errors.** These broke the first two hardware deployments and cannot be studied without real valve data. The challenge releases no hot-fire data ([organisers, Oct 2026](07-references.md#organisers2026)), so this stays with DLR.

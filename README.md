@@ -6,20 +6,29 @@ DLR's own SAC controller has done this on the real engine at 1.3 % mean error, z
 
 **Docs site:** <https://leandergrech.github.io/rl-rocket-engine-control/>
 
-## Status (2026-10-02): challenge access pending; a surrogate lab in the meantime
+## Built on
 
-The challenge simulator, evaluation service and fine-tuning dataset are **not public**. At the RL Bootcamp 2026 (17 Sep) DLR said release was waiting on "some legal issues" and asked interested people to email. A 30-minute search found nothing public; every place checked is logged in [docs/07-references.md](docs/07-references.md#71-search-log-where-the-lumen-control-challenge-simulator-is-not).
+This project builds on the work of DLR's Institute of Space Propulsion, Lampoldshausen:
+
+- **The LUMEN Control Challenge**: V. Bareiß, K. Dresia, G. Waxenegger-Wilfing et al., "Development of a Benchmark for Deep Reinforcement Learning Based Control of Liquid Propellant Rocket Engines", 5th AI4Aerospace workshop, 2025; K. Dresia et al., RL4AA'25.
+- **The doctoral thesis**: K. Dresia, *Rocket Engine Control with Deep Reinforcement Learning*, DLR-FB-2025-16, RWTH Aachen, 2025 ([PDF](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf)).
+- **The LUMEN engine and its model**: J. Deeken et al. 2021; T. Traudt et al., IAC 2022 and 2024; E. Kurudzija et al., EUCASS 2025; J. Dauer et al., EUCASS 2025.
+
+Every statement about LUMEN on the site cites one of these, with page numbers. The surrogate, the baselines and the Engine Lab are this repository's own work. Full list: [docs/07-references.md](docs/07-references.md).
+
+## Status (2026-10-08): the challenge release is expected around the end of October 2026; a surrogate lab in the meantime
+
+The challenge simulator, evaluation service and fine-tuning dataset are **not public yet**. The organisers expect to share a repository around the end of October 2026, running at 20 Hz with no preview of future set points. Every place searched before then is logged in [docs/07-references.md](docs/07-references.md#71-search-log-where-the-lumen-control-challenge-simulator-is-not).
 
 What this repository contains:
 
 - **The literature review** (`docs/`, published to the Pages site): the problem, a 2018–2026 timeline, designs side by side, limitations with numbers, ranked open questions, and verified references.
 - **A domain primer** in nine chapters with interactive widgets, an equation sheet and a glossary.
 - **A surrogate engine and the Engine Lab.** `src/rl_rocket_engine/surrogate/` is a reduced, LUMEN-like expander-bleed model. It is calibrated to the static gains, settling times and overshoot DLR publishes for its LUMEN model (Dresia 2025, Tables 4.6–4.7). Around it are a Gymnasium environment for the 2×2 task and a JavaScript port that runs in the browser. **It is not DLR's simulator**, and its numbers say nothing quantitative about the challenge.
-- **Baselines on the surrogate:** open-loop feedforward, a decoupled gain-scheduled PI, and PPO and SAC with and without reference preview, each trained in under an hour on a CPU, plus robustness tests.
-- **A draft access request** to DLR, [docs/email-to-dlr.md](docs/email-to-dlr.md), to be sent by Leander. It has not been sent.
+- **Baselines on the surrogate:** open-loop feedforward, a decoupled gain-scheduled PI, and PPO and SAC with and without reference preview (preview only as an ablation, since the challenge excludes it), each trained in under an hour on a CPU, plus robustness tests.
 - **A release checker**, `scripts/check_challenge.py`, which reports new public repositories in `DLR-RA` or LUMEN packages on PyPI.
 
-When access is granted, the environment wrapper moves to DLR's simulator and every baseline is rerun there.
+When the challenge is released, the environment wrapper moves to DLR's simulator (20 Hz, no preview) and every baseline is rerun there.
 
 ## Quick start
 
@@ -37,7 +46,8 @@ mkdocs serve                       # read the review and use the Engine Lab loca
 ## Layout
 
 ```
-docs/                     literature review and primer (MkDocs Material); email-to-dlr.md is excluded from the site
+docs/                     literature review and primer (MkDocs Material)
+includes/abbreviations.md acronyms spelled out as tooltips on every page
 docs/javascripts/         lumen-model.js (browser port of the surrogate), widgets.js, lab.js
 src/rl_rocket_engine/     challenge_status.py (release checker)
   surrogate/              model.py, params.py, calibrate.py (+ calibrated.json), trim.py, env.py, pi.py, rl.py, metrics.py

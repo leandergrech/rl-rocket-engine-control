@@ -1,4 +1,8 @@
-# 5. Limitations: what fails and by how much
+---
+icon: re/warning
+---
+
+# :re-warning: 5. Limitations: what fails and by how much
 
 Every number below links to its source. Where I state an interpretation rather than a reported fact, it says so.
 
@@ -180,7 +184,8 @@ The positive side, in the author's summary: control was successful "even in the 
 - **No preview of the reference.**
     - Without future references in the observation, a policy can only react to a ramp. That is the lag visible in the bootcamp PPO demo, where the speaker attributed it to missing "future reference values" and valve delay ([livestream](https://www.youtube.com/watch?v=CX8I88Pta_I&t=26100s)).
     - With 4 steps of preview (D1 in [§4](04-designs.md)) the thesis reached 0.3 % / 0.1 %.
-    - For a vehicle whose thrust demand comes from a guidance loop, preview may be unavailable; the thesis's hardware controller did without it ([p. 102](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=119)).
+    - For a vehicle whose thrust demand comes from a guidance loop, preview is unavailable; the thesis's hardware controller did without it ([p. 102](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=119)).
+    - **The challenge excludes preview too**: its targets are generated in real time ([organisers, Oct 2026](07-references.md#organisers2026)). The ramp lag is part of the task, not a design choice.
 
 ## 5.4 Data: minutes of reality, days of simulation
 
@@ -200,10 +205,12 @@ The positive side, in the author's summary: control was successful "even in the 
     - The thesis trained at "about one million training steps per day" on 10 parallel EcosimPro instances ([p. 83](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=100)).
     - The hardware controller needed about 5 M steps and about 5 days to retrain ([p. 118](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=135)).
     - Domain randomisation doubled the training steps, from 1.5 M to 2.9 M ([Table 5.3](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=108)).
-    - *My extrapolation:* at that rate a one-hour laptop budget is about 4 × 10⁴ steps on 10 cores. That is 1–3 % of what the published agents used, if the challenge's generalised simulator is as slow as the thesis model. Its speed is unknown.
+    - The challenge's simulator runs at about real time, and several instances can run in parallel; DLR's own training took one to seven days per control problem ([organisers, Oct 2026](07-references.md#organisers2026)).
+    - *My extrapolation:* at 20 Hz and real time, one simulator instance gives about 7 × 10⁴ steps per CPU hour. A laptop running 8 instances gets about 6 × 10⁵ steps an hour: enough for SAC-sized runs, but a 3 M-step PPO run takes most of a working day.
 - **The benchmark data is not yet available.**
-    - The "dataset for fine-tuning" and the "simulated sensor and system errors" ([RL4AA'25](https://indico.kit.edu/event/4216/contributions/19241/contribution.pdf)) have not been published. Nor has anything else ([§7.1](07-references.md#71-search-log-where-the-lumen-control-challenge-simulator-is-not)).
-    - DLR's previous LUMEN benchmark, for DX'25 diagnosis, was only distributed by email request ([LiU page](https://vehsys.gitlab-pages.liu.se/dx25benchmarks/lumen/lumen_index)).
+    - The "dataset for fine-tuning" and the "simulated sensor and system errors" ([RL4AA'25](https://indico.kit.edu/event/4216/contributions/19241/contribution.pdf)) have not been published. Nor has anything else ([§7.1](07-references.md#71-search-log-where-the-lumen-control-challenge-simulator-is-not)); a repository is expected around the end of October 2026 ([organisers](07-references.md#organisers2026)).
+    - The fine-tuning data will not contain real hot-fire runs, which are export-controlled; the sim-to-real test cases change model parameters instead (same source). Real valve and sensor behaviour therefore stays out of reach for participants.
+    - DLR's previous LUMEN benchmark, for DX'25 diagnosis, was only distributed on request ([LiU page](https://vehsys.gitlab-pages.liu.se/dx25benchmarks/lumen/lumen_index)).
     - The underlying ESPSS library needs "prior approval from ESA" ([brochure](https://www.ecosimpro.com/wp-content/uploads/2015/02/ecosimpro_brochure_library_espss.pdf)).
 
 ## 5.5 Comparability: there is no common scale yet

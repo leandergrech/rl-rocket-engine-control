@@ -1,9 +1,10 @@
 ---
 hide:
   - toc
+icon: re/timeline
 ---
 
-# 3. Timeline 2018–2026
+# :re-timeline: 3. Timeline 2018–2026
 
 Results relevant to learning-based control of liquid rocket engines, in date order. **Engine** rows are the main line; **adjacent** rows (landing guidance, thrusters, test-bench automation) are included where they shaped methods or show the state of the art next door. Every number links to where it appears; rows marked *A* rest on an abstract only (see [§7](07-references.md)).
 
@@ -242,7 +243,7 @@ Results relevant to learning-based control of liquid rocket engines, in date ord
       "when": "2025-09",
       "lane": "Benchmark and infrastructure",
       "what": "DX'25 LUMEN diagnosis benchmark",
-      "result": "simulator on request by email"
+      "result": "simulator on request only"
      },
      {
       "date": "2026-03-31",

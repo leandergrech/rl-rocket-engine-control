@@ -1,13 +1,13 @@
 ---
-icon: re/glossary
+icon: re/hotfire
 ---
 
-# :re-glossary: Hot fire, simulators and glossary
+# :re-hotfire: Hot fire, simulators and glossary
 
 !!! abstract "In short"
 
     - **A hot-fire test is a scripted sequence**: chill-down, ignition, an open-loop ramp-up, a closed-loop phase lasting seconds, and shutdown. Real interaction is measured in minutes per year.
-    - **DLR's LUMEN model** is EcosimPro with ESA's ESPSS library, validated against hot fire to a few percent. ESPSS needs ESA's approval to use, which is the likeliest reason the challenge promises a *generalised* model.
+    - **DLR's LUMEN model** is EcosimPro with ESA's ESPSS library, validated against hot fire to a few percent. ESPSS needs ESA's approval to use, which is the likeliest reason the challenge promises a *generalised* model. The challenge's generalised simulator needs no EcosimPro licence and runs at about real time ([organisers, Oct 2026](../07-references.md#organisers2026)).
     - The glossary at the end links each term to its chapter.
 
 ## What a hot-fire test looks like

@@ -1,7 +1,11 @@
-# 1. The control problem
+---
+icon: re/loop
+---
+
+# :re-loop: 1. The control problem
 
 !!! warning "What is and is not known"
-    The LUMEN Control Challenge environment was not public on 2026-09-30 ([search log](07-references.md#71-search-log-where-the-lumen-control-challenge-simulator-is-not)). This page therefore states the problem from the published benchmark design and from DLR's own RL formulations of the same engine. Two sources carry the benchmark design: the [AI4Aerospace 2025 extended abstract](https://w3.onera.fr/ailab/sites/default/files/2025-06/abstractsAI4A5thworkshop_external.pdf#page=55) and the [RL4AA'25 abstract](https://indico.kit.edu/event/4216/contributions/19241/contribution.pdf). The formulations come from the [Dresia 2025 thesis](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf). Anything the challenge fixes that these sources do not state is marked **unknown**. That includes the observation vector, reward, control rate, episode length and scoring.
+    The LUMEN Control Challenge environment is not public yet ([search log](07-references.md#71-search-log-where-the-lumen-control-challenge-simulator-is-not)); the organisers expect to share a repository around the end of October 2026 ([personal communication](07-references.md#organisers2026)). This page therefore states the problem from the published benchmark design, from DLR's own RL formulations of the same engine, and from what the organisers have confirmed. Two sources carry the benchmark design: the [AI4Aerospace 2025 extended abstract](https://w3.onera.fr/ailab/sites/default/files/2025-06/abstractsAI4A5thworkshop_external.pdf#page=55) and the [RL4AA'25 abstract](https://indico.kit.edu/event/4216/contributions/19241/contribution.pdf). The formulations come from the [Dresia 2025 thesis](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf). The organisers have confirmed the control rate (20 Hz), the episode length (10–100 s) and that the observation holds no future set points. Anything else the challenge fixes that these sources do not state is marked **unknown**. That includes the admissible action range, the openings of the valves the agent does not control, the reward used for evaluation, and the scoring.
 
 ## 1.1 The plant in one paragraph
 
@@ -84,6 +88,8 @@ $n$ is in the hundreds, and $x_t$ is never observed directly.
 - their references $r_t = (p_{cc}^{\mathrm{ref}}, R_{OF}^{\mathrm{ref}})$;
 - the measured valve positions.
 
+**No preview.** Future set points are not part of the observation: on the real engine the targets are generated in real time, so a policy cannot see them in advance ([organisers, Oct 2026](07-references.md#organisers2026)). DLR's hardware controller worked the same way ([§4.3](04-designs.md#43-d3-the-hardware-controller)).
+
 Measurement effects the sim-to-real work had to model:
 
 - **Noise.** Measured steady-state noise on the real engine is $\sigma = 0.3\,\%$ on $p_{cc}$ and $3.0\,\%$ on $R_{OF}$ ([thesis Fig. 6.11](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=133)).
@@ -127,7 +133,7 @@ The exponential tracking term is bounded in $[-1, 0]$ per output per step. The e
 
 With only TFV and TOV actuated, the other valves (FCV, BPV, OCV, XCV) are presumably held at fixed openings. Several of these constraints are then only indirectly controllable. How the challenge handles this is **unknown**.
 
-**Horizon and rate.** These are **unknown** for the challenge. DLR's settings for comparison:
+**Horizon and rate.** The challenge runs at **20 Hz** ($\Delta t$ = 0.05 s), with episodes of **10–100 s** depending on the control problem ([organisers, Oct 2026](07-references.md#organisers2026)). That is 200–2000 steps per episode. DLR's earlier settings for comparison:
 
 - Simulation study: $\Delta t = 0.1$ s, 50 s episodes of 500 steps ([thesis p. 79](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=96), [p. 83](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=100)).
 - Hardware controller: 20 Hz ([thesis p. 99](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=116)).
@@ -158,7 +164,7 @@ flowchart LR
 | 1 | Tracking, nominal model, reference known a priori during training | Single-task MDP; open-loop trajectory optimisation is a valid baseline |
 | 2 | Tracking, nominal model, randomised unknown reference | Goal/reference-conditioned policy; generalisation over reference signals |
 | 3 | Multiplicative parametric uncertainty, distribution and affected parameters known at training time | Robust RL / domain randomisation with a known prior over $\theta$ |
-| 4 | Parametric uncertainty, nothing known about it | Unsupervised domain adaptation, i.e. sim-to-real with an unknown gap; presumably where the "dataset for fine-tuning" ([RL4AA'25](https://indico.kit.edu/event/4216/contributions/19241/contribution.pdf)) enters |
+| 4 | Parametric uncertainty, nothing known about it | Unsupervised domain adaptation, i.e. sim-to-real with an unknown gap; presumably where the "dataset for fine-tuning" ([RL4AA'25](https://indico.kit.edu/event/4216/contributions/19241/contribution.pdf)) enters. The gap is made by changing model parameters; no hot-fire data is released ([organisers](07-references.md#organisers2026)) |
 | 5 | Slow continuous dynamics change within an episode (component ageing) | Non-stationary MDP; online adaptation / system identification in the loop |
 | 6 | Fault, with a binary fault-detection signal given at training and evaluation | Fault-tolerant control with privileged context (a mode flag in the observation) |
 | 7 | Fault, no detection signal | Fault-tolerant control with latent mode; implicit identification from history |
@@ -189,4 +195,4 @@ Here "solved" means the reference numbers below are matched or beaten on the cha
 5. **Fault tolerance (test cases 6–7).** Recovery to the tolerance band after fault onset, or a detected and flagged loss of capability. The safety line of work ([Dauer et al. 2025](https://www.eucass.eu/doi/EUCASS2025-533.pdf)) treats knowing when the policy is out of its competence as part of the task.
 6. **Transfer.** The real test, only available to DLR, is zero-shot deployment on the engine. The published bar is 1.3 % mean tracking error over more than 16 s of closed-loop hot fire ([thesis p. 113](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=130)). That figure averages four regulated variables: $p_{cc}$ 0.7 %, $R_{OF}$ 2.7 %, cooling-channel flow 1.1 % and injection temperature 0.8 %. It came from a four-valve controller, not the 2×2 benchmark task.
 
-None of these numbers has been reproduced in this repository: the environment is not available ([§7.1](07-references.md#71-search-log-where-the-lumen-control-challenge-simulator-is-not)). The same metrics are computed for PI, PPO and SAC on this repo's surrogate engine in [Baselines on the surrogate](04a-surrogate-baselines.md); those numbers are about the surrogate, not about LUMEN.
+None of these numbers has been reproduced in this repository: the environment is not available yet ([§7.1](07-references.md#71-search-log-where-the-lumen-control-challenge-simulator-is-not)). The same metrics are computed for PI, PPO and SAC on this repo's surrogate engine in [Baselines on the surrogate](04a-surrogate-baselines.md); those numbers are about the surrogate, not about LUMEN.

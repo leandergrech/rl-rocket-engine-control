@@ -3,9 +3,9 @@ repo: https://github.com/leandergrech/rl-rocket-engine-control
 pages: https://leandergrech.github.io/rl-rocket-engine-control/
 step: 6
 state: blocked
-updated: 2026-10-02T19:03:11Z
-blockers: LUMEN Control Challenge simulator, evaluation service and fine-tuning dataset not public; DLR grants access by email (legal issues pending per 17 Sep 2026 pitch)
-next: Leander sends docs/email-to-dlr.md; when DLR grants access, port the env to the challenge simulator and rerun PI/PPO/SAC there (5 seeds), then the residual-on-PI and preview/action-rate experiments (docs/06-open-questions.md Q3, Q5)
+updated: 2026-10-08T09:22:52Z
+blockers: LUMEN Control Challenge simulator, evaluation service and fine-tuning dataset not public yet; organisers expect a repository around the end of October 2026
+next: when the challenge repository is out, port the env to it at 20 Hz without preview and rerun PI/PPO/SAC there (5 seeds, vectorised environments), then the residual-on-PI and anticipation-without-preview experiments (docs/06-open-questions.md Q3, Q5)
 log:
 - 2026-09-30T16:07:05Z step 0 done: gh logged in as leandergrech (repo, workflow scopes); git user.name "Leander Grech"; repo folder empty
 - 2026-09-30T16:08:01Z step 1 done: skeleton committed, public repo created and pushed
@@ -18,3 +18,5 @@ log:
 - 2026-10-02T14:54:47Z Leander asked for tokamak/flatland-style docs (primer chapters, Lab) and approved a clearly labelled dummy lab; thesis Table 4.6 gives the 2x2 static gains, Table 4.7 settling times: enough to calibrate a reduced model
 - 2026-10-02T15:58:19Z surrogate calibrated (statics within ~13 % of Table 4.6 except TOV->T_RC; TFV settling within 25 %; overshoot 6.48 vs 6.5 bar); valve law fixed to settle without overshoot; PI tuned; PPO preview trained (3 M steps, 16.8 min); Python/JS parity test passes in headless Chrome; primer split into 9 chapters + equation sheet + Engine Lab
 - 2026-10-02T19:03:11Z surrogate lab done: 9 primer chapters with widgets, equation sheet, Engine Lab (PI/PPO/SAC live in the browser; Python/JS parity in headless Chrome); baselines on the surrogate: PI 2.75/2.48 % MAPE, PPO/SAC with preview ~0.5/0.3 %, preview halves pressure error (2 PPO seeds), 5 % weaker LOX turbine -> 3 % ROF offset for the networks, removed by PI; every run under 1 h CPU (PPO 17-27 min, SAC 50-55 min); pytest 71 passed, mkdocs --strict ok, reproduce.sh ok (evaluate --check exact); challenge still not public
+- 2026-10-08T08:41:03Z Engine Lab redesign: one immersive viewer around the test stand (controls as glass panels docked over the scene on wide screens and in full screen, stacked under it on phones), every panel and info card folds to a corner/edge button, narration line, telemetry dials and limit bars, hover/tap explanations of each part, control-loop pulses, event callouts, perturbation tags, drag-the-valves sandbox, zoom/pan, keys; acronyms spelled out in an A-Z card and as site-wide tooltips (abbr + snippets); pytest 81 passed (new headless page test), mkdocs --strict ok
+- 2026-10-08T09:22:52Z docs refresh: home page rebuilt around a 'Built on' citation of DLR's work (benchmark, Dresia thesis, LUMEN papers; BibTeX), curated source cards and the reading route; nav reordered to follow page numbers (problem, physics, field, what next, sources); redrawn glyph family (32 icons, new logo); organisers' confirmed facts (release ~end Oct 2026, 20 Hz, no preview, simulated fine-tuning data) added as personal communication; docs never mention email (test); pytest passed, mkdocs --strict ok

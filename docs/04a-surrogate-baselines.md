@@ -2,10 +2,13 @@
 icon: re/surrogate
 ---
 
-# :re-surrogate: Baselines on the surrogate
+# :re-surrogate: 4a. Baselines on the surrogate
 
 !!! warning "These are surrogate results, not DLR's simulator"
     DLR's LUMEN Control Challenge simulator is not public ([§7.1](07-references.md#71-search-log-where-the-lumen-control-challenge-simulator-is-not)). Everything on this page runs on this repo's surrogate: a reduced expander-bleed engine calibrated to the gains, settling times and overshoot DLR publishes for its LUMEN model ([model card](primer/8-lab.md#model-card)). The page is a dry run of the baseline set [§4.8](04-designs.md#48-what-this-means-for-the-challenge) calls for. It tests the code, the metrics and the questions, not the numbers. Rankings may transfer to the real task; magnitudes will not.
+
+!!! info "Two differences from the challenge, confirmed in October 2026"
+    The challenge runs at **20 Hz** and gives **no preview** of future set points ([organisers, Oct 2026](07-references.md#organisers2026)). This page runs at 10 Hz, the thesis's simulation setting. The rows *without preview* are the ones comparable to a challenge entry. The preview rows are an ablation: they show what anticipation is worth.
 
 !!! abstract "In short"
 
@@ -759,6 +762,6 @@ Training returns are those of the stochastic policy, which pays the valve-travel
 - **It shows the pipeline works end to end**: an environment with DLR's reward, constraints, preview and stacking; a classical baseline with feedforward, decoupling and anti-windup; two RL algorithms trained on a CPU; export of the networks; and a browser port checked against Python (to $10^{-6}$ for the engine and the PI).
 - **It shows which questions are worth asking on the real simulator**: how much preview is worth, how well a feedback-free schedule holds up, and how quickly each learner gets there.
 - **It does not show how any of these controllers would do on LUMEN.** The surrogate matches DLR's model at one operating point to within about 13 % in static gain and 25 % in settling time. Its envelope is narrower, its noise is gentler (σ 0.005 on $R_{OF}$ against about 0.1 on the real engine), and its dynamics have fewer states. Two seeds for PPO and one for SAC are not a result either.
-- **Next, on the real simulator:** five seeds per learner, PI with dynamic decoupling, a residual agent on top of PI ([open question 3](06-open-questions.md#3-residual-rl-on-a-decoupled-pi-baseline-with-a-bounded-envelope)), and the preview / action-rate ablation ([open question 5](06-open-questions.md)).
+- **Next, on the real simulator** (20 Hz, no preview): five seeds per learner, PI with dynamic decoupling, a residual agent on top of PI ([open question 3](06-open-questions.md#3-residual-rl-on-a-decoupled-pi-baseline-with-a-bounded-envelope)), and anticipation without preview ([open question 5](06-open-questions.md#5-anticipation-without-preview-delays-and-action-design-for-the-22-task)).
 
 Reproduce: `bash scripts/reproduce.sh` re-evaluates the stored networks and checks them against `data/results/summary.json`; `bash scripts/reproduce.sh --full` retrains everything.
