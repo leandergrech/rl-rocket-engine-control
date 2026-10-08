@@ -3,7 +3,7 @@ repo: https://github.com/leandergrech/rl-rocket-engine-control
 pages: https://leandergrech.github.io/rl-rocket-engine-control/
 step: 6
 state: blocked
-updated: 2026-10-08T13:09:17Z
+updated: 2026-10-08T13:25:06Z
 blockers: LUMEN Control Challenge simulator, evaluation service and fine-tuning dataset not public yet; organisers expect a repository around the end of October 2026
 next: when the challenge repository is out, port the env to it at 20 Hz without preview and rerun PI/PPO/SAC there (5 seeds, vectorised environments), then the residual-on-PI and anticipation-without-preview experiments (docs/06-open-questions.md Q3, Q5)
 log:
@@ -21,3 +21,4 @@ log:
 - 2026-10-08T08:41:03Z Engine Lab redesign: one immersive viewer around the test stand (controls as glass panels docked over the scene on wide screens and in full screen, stacked under it on phones), every panel and info card folds to a corner/edge button, narration line, telemetry dials and limit bars, hover/tap explanations of each part, control-loop pulses, event callouts, perturbation tags, drag-the-valves sandbox, zoom/pan, keys; acronyms spelled out in an A-Z card and as site-wide tooltips (abbr + snippets); pytest 81 passed (new headless page test), mkdocs --strict ok
 - 2026-10-08T09:22:52Z docs refresh: home page rebuilt around a 'Built on' citation of DLR's work (benchmark, Dresia thesis, LUMEN papers; BibTeX), curated source cards and the reading route; nav reordered to follow page numbers (problem, physics, field, what next, sources); redrawn glyph family (32 icons, new logo); organisers' confirmed facts (release ~end Oct 2026, 20 Hz, no preview, simulated fine-tuning data) added as personal communication; docs never mention email (test); pytest passed, mkdocs --strict ok
 - 2026-10-08T13:09:17Z surrogate at 20 Hz without preview: PPO retrained (2.7 M steps, 55 min cap) 1.04/0.82 % MAPE vs tuned PI 2.61/2.27 %; SAC undertrained (170 k steps on a shared CPU) 1.31/1.23 %; 10 Hz agents kept in the lab; PI gains by loop bandwidth (SIMC on FOPDT fits, default 0.15/0.47 Hz from a grid search); 15 fault kinds in model and lab with onset graphics; seven test cases in miniature, 63-episode scoreboard live in the browser (~10-16 s); pytest 96 passed, mkdocs --strict ok, CI and Pages green
+- 2026-10-08T13:25:06Z docs for DLR readers (rebased on the 20 Hz surrogate): guess about the release delay removed; For Leander moved to a Personal section at the end; §5.1 titled with numbers; organisers' personal communication trimmed to technical facts (release timing, 20 Hz/episodes, no preview, simulated data, simulator speed) pending their consent; Lab no longer pins DLR's first unstable hot-fire test on dead time; pytest 71 passed 25 skipped (no Chrome/torch here), mkdocs --strict ok
