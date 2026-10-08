@@ -46,7 +46,6 @@ validation:
 nav:
   - Start:
       - Home: index.md
-      - For Leander: for-leander.md
   - The problem:
       - 1. The control problem: 01-problem.md
   - The physics:
@@ -70,6 +69,8 @@ nav:
       - 6. Open questions: 06-open-questions.md
   - Sources:
       - 7. References: 07-references.md
+  - Personal:
+      - For Leander: for-leander.md
 
 hooks:
   - hooks/asset_versions.py
