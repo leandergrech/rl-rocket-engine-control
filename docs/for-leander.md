@@ -34,8 +34,8 @@ flowchart LR
 - **Coupled outputs by construction.** $p_{cc}$ follows the sum of the propellant flows, and $R_{OF}$ their ratio. Both actions move both outputs ([The engine as a control system](primer/1-engine.md#two-valves-two-outputs-no-clean-pairing)).
 - **Constraints with physical teeth.** A mixture-ratio excursion burns the chamber. Too little coolant flow overheats the wall. Coolant pressure below 46 bar boils the methane. And the most efficient operating point sits on the coolant-flow constraint ([Constraints](primer/5-constraints.md#what-the-constraints-protect)).
 - **Actuator models are the weak point.** The first two hardware deployments of DLR's RL controller failed on valve dynamics, not on the plant ([§5.1](05-limitations.md#51-sim-to-real-13-on-hardware-against-04-in-simulation)).
-- **Access is close, with terms.** DLR's model is EcosimPro with ESA's ESPSS library, and ESPSS "needs prior approval from ESA" ([brochure](https://www.ecosimpro.com/wp-content/uploads/2015/02/ecosimpro_brochure_library_espss.pdf)). The challenge's generalised simulator needs no EcosimPro licence; a repository is expected around the end of October 2026; publications should cite DLR's benchmark paper and be announced to the organisers first ([organisers, Oct 2026](07-references.md#organisers2026)). Plan for a licence that may still restrict redistribution and teaching use.
-- **Slow simulation.** DLR trained at about 1 M steps per day on 10 simulator instances ([thesis p. 83](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=100)). The challenge simulator runs at about real time, and DLR's training took one to seven days per problem ([organisers, Oct 2026](07-references.md#organisers2026)). The bootcamp's air-traffic reference solution trains for 1.5 M steps as a matter of course. Budget accordingly.
+- **Access is close, with terms.** DLR's model is EcosimPro with ESA's ESPSS library, and ESPSS "needs prior approval from ESA" ([brochure](https://www.ecosimpro.com/wp-content/uploads/2015/02/ecosimpro_brochure_library_espss.pdf)). The challenge's generalised simulator needs no EcosimPro licence, and a repository is expected around the end of October 2026 ([organisers, Oct 2026](07-references.md#organisers2026)). Plan for a licence that may still restrict redistribution and teaching use.
+- **Slow simulation.** DLR trained at about 1 M steps per day on 10 simulator instances ([thesis p. 83](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=100)). The challenge simulator runs at about real time ([organisers, Oct 2026](07-references.md#organisers2026)). The bootcamp's air-traffic reference solution trains for 1.5 M steps as a matter of course. Budget accordingly.
 
 ## Ten working days
 
@@ -134,11 +134,11 @@ From the LUMEN Control Challenge organisers, October 2026 ([personal communicati
 
 | Topic | Answer | What it changes here |
 |---|---|---|
-| Release and terms | A repository around the end of October 2026. Results and code may be published, citing DLR's benchmark publication and contacting the organisers first. DLR plans an overview paper of all methods. | Plan the first paper so it can join that overview. |
+| Release | A repository around the end of October 2026. | Port the environment wrapper then and rerun every baseline on DLR's simulator. |
 | Control rate, episodes | 20 Hz; 10–100 s per episode, depending on the control problem. | The surrogate now runs at 20 Hz, and PPO and SAC are retrained for it ([baselines](04a-surrogate-baselines.md#results-20-hz)). |
 | Preview | No future set points in the observation; targets are generated in real time. | The retrained agents have no preview; the earlier preview runs remain as an ablation; [open question 5](06-open-questions.md#5-anticipation-without-preview-delays-and-action-design-for-the-22-task) is now about anticipation without preview. |
-| Data | No real hot-fire data (export control). The sim-to-real test cases change model parameters. | Adaptation is scored against known parameter shifts; real valve behaviour stays out of reach. |
-| Compute | No EcosimPro licence needed. About real time, with parallel instances. DLR's training took one to seven days per problem. | Budget for vectorised environments; [model-based RL](06-open-questions.md#2-model-based-rl-for-a-slow-simulator-mbpo-style-test-cases-12) gains weight. |
+| Data | No real hot-fire data. The sim-to-real test cases change model parameters. | Adaptation is scored against known parameter shifts; real valve behaviour stays out of reach. |
+| Compute | No EcosimPro licence needed. About real time, with parallel instances. | Budget for vectorised environments; [model-based RL](06-open-questions.md#2-model-based-rl-for-a-slow-simulator-mbpo-style-test-cases-12) gains weight. |
 
 Still open:
 

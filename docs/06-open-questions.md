@@ -72,7 +72,7 @@ Report tracking error and constraint violations against the amount of target dat
 **Why it is open.**
 
 - DLR's agents needed 1.5 M steps nominally, 2.9 M with domain randomisation ([Table 5.3](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=108)) and about 5 M for the hardware controller.
-- They trained at about 1 M steps per day on 10 EcosimPro instances ([p. 83](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=100)). The challenge simulator runs at about real time, and DLR's training took one to seven days per control problem ([organisers, Oct 2026](07-references.md#organisers2026)).
+- They trained at about 1 M steps per day on 10 EcosimPro instances ([p. 83](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=100)). The challenge simulator runs at about real time ([organisers, Oct 2026](07-references.md#organisers2026)).
 - The only model-based controller on LUMEN is the MPC with a Wiener model. It lost to SAC on tracking and constraints ([Table 5.4](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=114)).
 - No Dyna/MBPO/Dreamer-class result exists for liquid-rocket-engine control.
 - The plant is multi-time-scale: oxidiser-side responses under 1 s, fuel-side thermal responses up to 23.8 s ([Table 4.7](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=91)). That is a hard test for short-rollout model-based methods.

@@ -102,11 +102,11 @@ flowchart LR
 
 <a id="organisers2026"></a>**LUMEN Control Challenge organisers** (DLR Institute of Space Propulsion, Lampoldshausen). Personal communication to the author, 7 October 2026. **P**. Until the challenge documentation is released, this is the source for:
 
-- **Release and terms.** A repository is planned for around the end of October 2026. Results and code built on the simulator may be published, provided DLR's benchmark publication is cited and the organisers are contacted before publication. DLR will publish its own RL and MPC solutions and plans an overview paper that collects the participants' methods.
+- **Release.** A repository is planned for around the end of October 2026.
 - **Control rate and episodes.** 20 Hz, a rate an earlier study of control rates found sufficient (the [Dresia thesis](#dresia2025)). Episodes last 10–100 s, depending on the control problem.
 - **No preview.** Future reference values are not part of the observation, because on the real engine the targets are generated in real time.
-- **Data.** No real hot-fire data is published (export control). The sim-to-real test cases instead change model parameters.
-- **Compute.** No local EcosimPro licence is needed. The simulator runs at about real time (10 s of engine time takes about 10 s), and several instances can run in parallel. DLR's own training took one to seven days, depending on the control problem.
+- **Data.** No real hot-fire data is published. The sim-to-real test cases instead change model parameters.
+- **Compute.** No local EcosimPro licence is needed. The simulator runs at about real time (10 s of engine time takes about 10 s), and several instances can run in parallel.
 
 <a id="dresia2025rl4aa"></a>**Dresia, K., Waxenegger-Wilfing, G., Dauer, J., Hirlaender, S., Bareiß, V.** "A Benchmark for Deep Reinforcement Learning-Based Control of Liquid-Propellant Rocket Engines". RL4AA'25, DESY Hamburg, 4 Apr 2025, poster + talk. [Indico contribution](https://indico.kit.edu/event/4216/contributions/19241), [PDF](https://indico.kit.edu/event/4216/contributions/19241/contribution.pdf). **V**. The benchmark "includes simulation software calibrated with experimental data, a dataset for fine-tuning, and the ability to simulate representative errors in both sensors and the system itself" and "will be made freely accessible to the RL community".
 
