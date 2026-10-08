@@ -6,7 +6,7 @@ icon: re/warning
 
 Every number below links to its source. Where I state an interpretation rather than a reported fact, it says so.
 
-## 5.1 Sim-to-real: the controller works, but 3× worse than in simulation
+## 5.1 Sim-to-real: 1.3 % on hardware against 0.4 % in simulation
 
 | Evidence | Simulation | Hardware | Ratio | Source |
 |---|---|---|---|---|
