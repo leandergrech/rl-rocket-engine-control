@@ -75,15 +75,16 @@ icon: re/lab
     Below it, :re-play: *Hot fire* plays the episode in real time (or 2× / 4×). With *start-up and shutdown* on, it opens with a GN2 spin-up of the turbopumps, laser ignition and a pressure rise of about 1.5 s. It ends with a shutdown and an LN2 purge. Both durations follow the shape of DLR's hot-fire traces (IAC 2024, Fig. 5). The time slider, or hovering any plot under the viewer, shows one moment.
 - **On the stand:**
     - **what moves with the simulation:** chamber pressure, mixture ratio, pump speeds (with a ring showing each pump's speed against its limit), valve openings (the dial, with the command as a tick), the flows in every line, the coolant moving back through the jacket, the coolant and turbine-gas temperatures, and limit violations, shown as pulsing red outlines;
+    - **thrust**, in newtons, on a tag at the load cell where the engine pushes into the thrust frame. It is drawn as 25 kN × p_cc / 60 bar: thrust is proportional to chamber pressure, LUMEN's 35–80 bar envelope is 58–133 % of its nominal thrust ([thesis Table 4.1](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=75)), and the engine is "in the 25 kN thrust range" ([p. 5](https://elib.dlr.de/219040/1/DLR-FB-2025-16.pdf#page=22));
     - **the control loop:** the dashed wires from the sensor tap to the controller cabinet and on to the two valves carry one pulse per control step (0.05 s);
     - **callouts** mark the start-up phases, set-point steps and limits as they happen;
-    - **malfunctions pop out** the moment they start: the stand jolts, the view flashes red, a shockwave rings out from the failing part, and a red callout names the fault and what it does. While a fault lasts, its part shows it:
-        - a worn bearing shakes its pump, glows and throws sparks;
+    - **malfunctions pop out** the moment they start: the stand jolts briefly, the view flashes red, a shockwave rings out from the failing part, and a red callout names the fault and what it does. While a fault lasts, its part shows it:
+        - a worn bearing rattles its pump, glows and throws sparks;
         - a leak sprays vapour, and frost spreads on the floor;
-        - a stuck valve gets a padlock, and its actuator strains while the command tick moves on;
-        - a blocked turbine turns sooty, with a red cross on its inlet;
+        - a stuck valve turns red, with warning hatching and a padlock, and its tag says where it froze. Its actuator throws electric arcs while the command moves on, shown as a dashed ghost of the gate and a red gap on the dial;
+        - a blocked turbine turns sooty, sparks at its inlet and puffs soot, with a red cross on the inlet;
         - cooling degradation shows a pulsing hot spot with heat shimmer;
-        - ageing turns the turbines rusty;
+        - ageing turns the turbines rusty, with the odd spark and falling flakes;
         - a faulty sensor blinks red, its reading and the true value are tagged side by side, and its signal travels as a red, jittering pulse.
 
       The status badge turns into striped red; in test case 6 a *fault flag* chip shows what the controller is told. Red marks on the time slider and red lines in the plots mark each onset.

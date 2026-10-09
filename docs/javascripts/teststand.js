@@ -13,12 +13,13 @@
  *
  * Layers drawn on top of the hardware, each switchable: part names with their acronyms spelled out,
  * flow and temperature tags on the lines, the control loop (a controller cabinet, a sensor tap and
- * signal pulses at each 0.1 s step), and callouts for events (start-up phases, set-point steps, limits).
+ * signal pulses at each control step), a thrust tag at the load cell, and callouts for events (start-up
+ * phases, set-point steps, limits, malfunctions).
  * Hovering or tapping a part explains it with its live values.
  *
  * window.ReStand.create(parent, opts) -> { setRow(row), ignite(), shutdown(), setState(s), state,
  *   setOverlay(lines), setBadge(text, color), setRunLabel(text), setView({insets, focus}),
- *   setLayers({parts, flows, signals, callouts}), setController({label, kind, color} | null),
+ *   setLayers({parts, flows, signals, callouts}), setController({label, kind, color, dt} | null),
  *   setPerturb({heat, tf, to, delay, delay0, sensorDelay, noise}), pulse(), callout(key, text, sub, anchor),
  *   setValveDrag(fn | null), zoomBy(f), resetZoom(), status(), advance(seconds), resize() }.
  * opts: { state, maxHeight, runLabel, fill (height from the parent), hud (no text overlay drawn on the
@@ -36,6 +37,10 @@
   const nextFrame = (cb) => (CAPTURE ? setTimeout(() => cb(performance.now()), 16) : requestAnimationFrame(cb));
   const LIM = () => (window.LumenModel && window.LumenModel.LIMITS) || { rof_min: 2.5, rof_max: 4.0, t_turbine_max: 700, n_otp_max: 28000, n_ftp_max: 50000, p_rc_min: 46 };
   const kRpm = (n) => `${(Math.round(n / 100) / 10).toFixed(1)}k`;
+  // Thrust is proportional to chamber pressure: LUMEN's envelope of 35-80 bar is 58-133 % of its
+  // nominal thrust at 60 bar (thesis Table 4.1), and the engine is "in the 25 kN thrust range" (thesis p. 5).
+  const thrustN = (p) => 25000 * Math.max(0, p) / 60;
+  const fmtN = (v) => `${Math.round(v / 10) * 10}`.replace(/\B(?=(\d{3})+(?!\d))/g, "\u202f");
 
   // ---------------------------------------------------------------- engine geometry (world units)
   const G = { inj0: 368, cc0: 392, cc1: 446, thr: 468, exit: 556, rCC: 22, rT: 12, rE: 40 };
@@ -139,7 +144,7 @@
     tip.className = "re-stand-tip";
     tip.hidden = true;
     parent.appendChild(tip);
-    const SPR = { white: sprite([255, 255, 255]), grey: sprite([120, 118, 115]), fire: sprite([255, 110, 30]), flame: sprite([255, 205, 90]), blue: sprite([170, 200, 255]) };
+    const SPR = { white: sprite([255, 255, 255]), night: sprite([150, 160, 182]), grey: sprite([120, 118, 115]), soot: sprite([40, 36, 34]), fire: sprite([255, 110, 30]), flame: sprite([255, 205, 90]), blue: sprite([170, 200, 255]) };
     let dpr = 1, narrow = false;
     function resize() {
       const w = Math.max(240, parent.clientWidth || 800);
@@ -181,7 +186,7 @@
       const c = {
         spinup: ["Start-up: GN2 spins the turbopumps", "gaseous nitrogen drives both turbines before ignition", "otp"],
         ignition: ["Laser ignition", "chamber pressure rises over about 1.5 s", "chamber"],
-        run: [S.controller && S.controller.kind !== "open" ? `Closed loop: ${S.controller.label} has the valves` : "Main stage", S.controller && S.controller.kind === "open" ? "the valves follow a fixed schedule" : "it reads p_cc and ROF every 0.1 s", "cabinet"],
+        run: [S.controller && S.controller.kind !== "open" ? `Closed loop: ${S.controller.label} has the valves` : "Main stage", S.controller && S.controller.kind === "open" ? "the valves follow a fixed schedule" : `it reads p_cc and ROF every ${(S.controller && S.controller.dt) || 0.05} s`, "cabinet"],
         shutdown: ["Shutdown", "main valves close; pressure decays in about 0.5 s", "chamber"],
         purge: ["LN2 purge", "liquid nitrogen flushes the lines and the chamber", "nozzle"],
       }[state];
@@ -266,13 +271,25 @@
           const U = f.kind === "bearing_ftp" ? FTP : OTP, bx = (U.pump + U.turb) / 2;
           emit(Math.round(dt * 80 * Math.min(1, f.sev * 4) + R()), () => ({ k: "spark", x: bx + (R() - 0.5) * 14, y: U.y + (R() - 0.5) * 8, vx: (R() - 0.5) * 240, vy: -40 - R() * 170, r: 1, g: 0, life: 0.25 + R() * 0.45, age: 0, a: 1 }));
           if (R() < dt * 5) emit(1, () => ({ k: "smoke", x: bx, y: U.y - 10, vx: 6 + R() * 10, vy: -18 - R() * 12, r: 4 + R() * 4, g: 8, life: 1.6 + R(), age: 0, a: 0.3 }));
+        } else if (f.kind === "block_ft" || f.kind === "block_ot") {  // a choked turbine nozzle: sparks at the inlet, soot out of the exhaust
+          const U = f.kind === "block_ft" ? FTP : OTP, k = Math.min(1, f.sev * f.mag * 3);
+          emit(Math.round(dt * 30 * k + R() * 0.6), () => ({ k: "spark", x: U.turb + (R() - 0.5) * 8, y: U.y - U.rT - 2, vx: (R() - 0.5) * 160, vy: -30 - R() * 120, r: 1, g: 0, life: 0.2 + R() * 0.35, age: 0, a: 1 }));
+          if (R() < dt * 6 * k) emit(1, () => ({ k: "soot", x: U.turb + U.rT + 4, y: U.y - 4, vx: 14 + R() * 10, vy: -14 - R() * 10, r: 4 + R() * 3, g: 7, life: 1.8 + R(), age: 0, a: 0.4 }));
+        } else if (f.kind === "ageing") {  // worn turbines: the odd spark and rust flakes on both
+          for (const U of [OTP, FTP]) {
+            if (R() < dt * 10 * f.sev) emit(1, () => ({ k: "spark", x: U.turb + (R() - 0.5) * 16, y: U.y + (R() - 0.5) * 12, vx: (R() - 0.5) * 120, vy: -20 - R() * 90, r: 1, g: 0, life: 0.2 + R() * 0.3, age: 0, a: 1 }));
+            if (R() < dt * 3 * f.sev) emit(1, () => ({ k: "rust", x: U.turb + (R() - 0.5) * 20, y: U.y + U.rT * 0.6, vx: (R() - 0.5) * 10, vy: 10 + R() * 10, r: 1.6, g: 0, life: 2 + R(), age: 0, a: 0.9 }));
+          }
+        } else if ((f.kind === "stuck_tfv" || f.kind === "stuck_tov") && S.row) {  // the actuator motor strains against the frozen stem
+          const key = f.kind.slice(6), [vx0, vy0] = VALVES[key], gap = Math.abs((S.row["u_" + key] ?? S.row["x_" + key]) - S.row["x_" + key]);
+          if (gap > 0.01) emit(Math.round(dt * 40 * Math.min(1, gap * 8) + R() * 0.7), () => ({ k: "zap", x: vx0 + 18 + (R() - 0.5) * 12, y: vy0 + (R() - 0.5) * 10, vx: (R() - 0.5) * 120, vy: (R() - 0.5) * 120, r: 1, g: 0, life: 0.14 + R() * 0.18, age: 0, a: 1, s: R() * 10 }));
         } else if (f.kind === "leak_fuel" || f.kind === "leak_lox") {
           const [lx, ly, dir] = FAULT_LEAK[f.kind];
           emit(Math.round(dt * 110 * Math.min(1, f.sev * 4) + R()), () => ({ k: "leak", lox: f.kind === "leak_lox", x: lx + dir * 4, y: ly, vx: dir * (110 + R() * 140), vy: (R() - 0.7) * 80, r: 2 + R() * 3, g: 24, life: 0.7 + R() * 0.9, age: 0, a: 0.65 }));
         }
       }
-      S.shake = Math.max(0, S.shake - dt * 1.7);
-      S.redFlash = Math.max(0, S.redFlash - dt * 1.3);
+      S.shake = Math.max(0, S.shake - dt * 2.6);
+      S.redFlash = Math.max(0, S.redFlash - dt * 1.6);
       for (const k of S.shocks) k.age += dt;
       S.shocks = S.shocks.filter((k) => k.age < 0.9);
       // move
@@ -281,9 +298,10 @@
         q.age += dt;
         q.vx += (wind - q.vx) * dt * (q.k === "purge" ? 0.7 : 0.35);
         if (q.k === "fire") q.vy -= 10 * dt; else if (q.k === "mist") q.vy += 2 * dt;
-        else if (q.k === "spark") q.vy += 420 * dt; else if (q.k === "leak") q.vy += 70 * dt; else q.vy -= 3 * dt;
+        else if (q.k === "spark") q.vy += 420 * dt; else if (q.k === "leak") q.vy += 70 * dt; else if (q.k === "rust") q.vy += 30 * dt; else if (q.k === "zap") q.vy += 0; else q.vy -= 3 * dt;
         if (q.k === "spark") q.vx *= 1 - dt * 0.8; else q.vx += 0;
         q.x += q.vx * dt; q.y += q.vy * dt; q.r += q.g * dt;
+        if (q.k === "zap" || q.k === "rust") q.vx = q.k === "rust" ? q.vx * (1 - dt) : q.vx;
         if (q.k === "spark" && q.y > GROUND) { q.y = GROUND; q.vy *= -0.35; q.vx *= 0.6; }
         else if (q.k !== "mist" && q.k !== "vent" && q.y > GROUND - q.r * 0.3) q.y = GROUND - q.r * 0.3;
       }
@@ -299,7 +317,7 @@
       else { const a = 1 - Math.exp(-dt / 0.22); cam.s = lerp(cam.s, tc.s, a); cam.ox = lerp(cam.ox, tc.ox, a); cam.oy = lerp(cam.oy, tc.oy, a); }
       emitStatus();
     }
-    function plumeLength(P) { return 330 * Math.pow(clamp(P / 50, 0, 1.6), 0.85); }
+    function plumeLength(P) { return 330 * Math.pow(clamp(P / 50, 0, 1.6), 1.1); }
 
     // ---------------------------------------------------------------- camera
     function targetCam() {
@@ -327,9 +345,9 @@
         wall: [52, 56, 66], wall2: [44, 47, 56], roof: [70, 74, 84], floor: [60, 62, 68], steel: [128, 136, 150], steelDark: [86, 92, 104], ink: "#e4e8f2", ink2: "#a8b0c4",
         copper: [178, 104, 64], nickel: [150, 150, 158], halo: "rgba(10,14,28,0.78)", pill: "rgba(12,18,36,0.86)", dark: true,
       } : {
-        sky0: [150, 186, 226], sky1: [214, 228, 242], forest0: [92, 116, 98], forest1: [66, 88, 72], ground: [150, 148, 140], gravel: [168, 164, 152],
+        sky0: [122, 172, 232], sky1: [204, 226, 247], forest0: [76, 120, 88], forest1: [52, 92, 64], ground: [150, 148, 140], gravel: [170, 162, 146],
         wall: [214, 214, 208], wall2: [196, 196, 190], roof: [178, 178, 172], floor: [186, 186, 180], steel: [150, 156, 166], steelDark: [104, 110, 122], ink: "#1d2236", ink2: "#4a5068",
-        copper: [190, 112, 70], nickel: [168, 168, 174], halo: "rgba(255,255,255,0.82)", pill: "rgba(255,255,255,0.9)", dark: false,
+        copper: [202, 108, 58], nickel: [168, 168, 176], halo: "rgba(255,255,255,0.82)", pill: "rgba(255,255,255,0.9)", dark: false,
       };
     }
     let xR = W, xL = 0, yT = 0, yB = H;  // visible world extent (wider than W when the canvas is letterboxed)
@@ -401,17 +419,30 @@
         g.fillStyle = gl; g.fillRect(x - 28, y - 28, 56, 56); g.restore();
       }
       if (S.hover === key || S.drag === key) { g.beginPath(); g.arc(x + 6, y, 22, 0, 2 * Math.PI); g.strokeStyle = "rgba(255,170,60,0.85)"; g.lineWidth = 2; g.setLineDash([4, 3]); g.stroke(); g.setLineDash([]); }
+      if (stuck) {  // jammed: a red disc with warning hatching behind the body
+        g.save(); g.beginPath(); g.arc(x, y, 17, 0, 2 * Math.PI); g.clip();
+        g.fillStyle = "rgba(224,36,94,0.16)"; g.fillRect(x - 17, y - 17, 34, 34);
+        g.strokeStyle = "rgba(224,36,94,0.55)"; g.lineWidth = 2.2;
+        for (let d = -34; d <= 34; d += 7) { g.beginPath(); g.moveTo(x + d - 17, y + 17); g.lineTo(x + d + 17, y - 17); g.stroke(); }
+        g.restore();
+      }
       g.save(); g.translate(x, y); g.rotate(Math.PI / 2);
-      g.fillStyle = rgba(C.steel, 1); g.strokeStyle = rgba(C.steelDark, 1); g.lineWidth = 1.2;
+      g.fillStyle = rgba(C.steel, 1); g.strokeStyle = stuck ? "#e0245e" : rgba(C.steelDark, 1); g.lineWidth = stuck ? 1.6 : 1.2;
       g.beginPath(); g.moveTo(-11, -9); g.lineTo(11, 9); g.lineTo(11, -9); g.lineTo(-11, 9); g.closePath(); g.fill(); g.stroke();
       // the gate: a bar across the bore that swings open with the valve
-      g.strokeStyle = "#ff9a3c"; g.lineWidth = 2.4; g.lineCap = "round";
-      const a = (1 - clamp(open / 0.7, 0, 1)) * Math.PI / 2;
+      const gate = (v) => (1 - clamp(v / 0.7, 0, 1)) * Math.PI / 2;
+      if ((stuck || lag) && cmd != null && Math.abs(cmd - open) > 0.005) {  // where the controller wants it: a ghost of the gate
+        const ac = gate(cmd);
+        g.strokeStyle = C.dark ? "rgba(255,255,255,0.85)" : "rgba(29,34,54,0.85)"; g.lineWidth = 2; g.setLineDash([3, 2]);
+        g.beginPath(); g.moveTo(-8 * Math.cos(ac), -8 * Math.sin(ac)); g.lineTo(8 * Math.cos(ac), 8 * Math.sin(ac)); g.stroke(); g.setLineDash([]);
+      }
+      g.strokeStyle = stuck ? "#e0245e" : "#ff9a3c"; g.lineWidth = stuck ? 3 : 2.4; g.lineCap = "round";
+      const a = gate(open);
       g.beginPath(); g.moveTo(-7 * Math.cos(a), -7 * Math.sin(a)); g.lineTo(7 * Math.cos(a), 7 * Math.sin(a)); g.stroke();
       g.restore();
       // actuator and opening gauge, with the command as a white tick
       g.save();
-      if (stuck && Math.abs(moving) > 0.01) g.translate(Math.sin(S.t * 70) * 1.2, 0);
+      if (stuck && Math.abs(moving) > 0.01) g.translate(Math.sin(S.t * 70) * 0.7, 0);
       g.fillStyle = rgba(C.steelDark, 1);
       g.fillRect(x + 10, y - 7, 16, 14);
       g.restore();
@@ -419,6 +450,10 @@
       const a0 = Math.PI * 0.75, span = Math.PI * 1.5, a1 = a0 + span * clamp(open, 0, 1);
       g.beginPath(); g.arc(x + 18, y, 5.5, a0, a0 + span); g.strokeStyle = "rgba(255,255,255,0.35)"; g.lineWidth = 2.2; g.stroke();
       g.beginPath(); g.arc(x + 18, y, 5.5, a0, a1); g.strokeStyle = "#ff9a3c"; g.stroke();
+      if (cmd != null && (stuck || lag) && Math.abs(cmd - open) > 0.005) {  // the gap between command and opening, in red (amber for lag)
+        const ac = a0 + span * clamp(cmd, 0, 1);
+        g.beginPath(); g.arc(x + 18, y, 5.5, Math.min(a1, ac), Math.max(a1, ac)); g.strokeStyle = stuck ? "#e0245e" : "#e8a200"; g.lineWidth = 2.6; g.stroke();
+      }
       if (cmd != null) {
         const ac = a0 + span * clamp(cmd, 0, 1);
         g.beginPath(); g.moveTo(x + 18 + Math.cos(ac) * 3, y + Math.sin(ac) * 3); g.lineTo(x + 18 + Math.cos(ac) * 8.5, y + Math.sin(ac) * 8.5);
@@ -428,7 +463,7 @@
     function drawTurbopump(g, C, U, rot, n, nMax, bad, lit, fx) {
       fx = fx || {};
       g.save();
-      if (fx.bearing) g.translate(Math.sin(S.t * 97) * 1.8 * fx.bearing, Math.cos(S.t * 113) * 1.3 * fx.bearing);  // a worn bearing shakes the pump
+      if (fx.bearing) { const b = Math.min(1, fx.bearing); g.translate(Math.sin(S.t * 97) * 1.0 * b, Math.cos(S.t * 113) * 0.7 * b); }  // a worn bearing rattles the pump, a little
       // bearing block and shaft
       g.fillStyle = rgba(C.steelDark, 1);
       g.fillRect(U.pump + 8, U.y - 8, U.turb - U.pump - 16, 16);
@@ -563,7 +598,7 @@
       grad.addColorStop(0, rgba(mix(C.copper, [235, 120, 50], warm), 1));
       grad.addColorStop((G.thr - G.cc0) / (G.exit - G.cc0), rgba(mix(C.copper, [120, 170, 210], 0.55), 1));
       grad.addColorStop(0.62, rgba(C.nickel, 1));
-      grad.addColorStop(1, rgba(mix(C.nickel, [255, 120, 40], S.nozzleHeat * 0.75), 1));
+      grad.addColorStop(1, rgba(mix(C.nickel, [255, 120, 40], S.nozzleHeat * (C.dark ? 0.45 : 0.75)), 1));
       const outline = () => { g.beginPath(); top.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); for (let i = bot.length - 1; i >= 0; i--) g.lineTo(bot[i][0], bot[i][1]); g.closePath(); };
       const litEngine = S.hover === "chamber" || S.hover === "jacket" || S.hover === "nozzle" || S.hover === "injector";
       if (viol("rof") || viol("p_rc") || litEngine) {
@@ -587,7 +622,7 @@
       if (S.nozzleHeat > 0.05) {
         g.save(); g.globalCompositeOperation = "lighter";
         const gl = g.createRadialGradient(G.exit - 20, AXIS, 4, G.exit - 20, AXIS, 70);
-        gl.addColorStop(0, `rgba(255,120,40,${0.35 * S.nozzleHeat})`); gl.addColorStop(1, "rgba(255,120,40,0)");
+        gl.addColorStop(0, `rgba(255,120,40,${(C.dark ? 0.2 : 0.35) * S.nozzleHeat})`); gl.addColorStop(1, "rgba(255,120,40,0)");
         g.fillStyle = gl; g.fillRect(G.exit - 90, AXIS - 70, 140, 140); g.restore();
       }
       // injector head and manifold dome
@@ -604,7 +639,7 @@
       if (glow > 0.02) {
         g.save(); g.globalCompositeOperation = "lighter";
         const cc = g.createRadialGradient(G.cc1 - 10, AXIS, 2, G.cc1 - 10, AXIS, 48);
-        cc.addColorStop(0, `rgba(255,240,220,${0.55 * Math.min(1, glow)})`); cc.addColorStop(1, "rgba(255,160,80,0)");
+        cc.addColorStop(0, `rgba(255,240,220,${(C.dark ? 0.3 : 0.55) * Math.min(1, glow)})`); cc.addColorStop(1, "rgba(255,160,80,0)");
         g.fillStyle = cc; g.fillRect(G.cc0 - 20, AXIS - 50, 120, 100);
         g.restore();
       }
@@ -621,9 +656,10 @@
       const bright = clamp(P / 45, 0, 1.3);
       const L = plumeLength(P);
       // methalox: orange where fuel-rich (soot, afterburning), violet-blue towards stoichiometric
-      const edge = tS < 0.5 ? mix([255, 140, 50], [140, 110, 255], tS * 2) : mix([140, 110, 255], [120, 170, 255], (tS - 0.5) * 2);
-      const core = mix([255, 226, 180], [225, 236, 255], tS);
-      const add = C.dark ? "lighter" : "source-over", gain = C.dark ? 0.8 : 1.25;
+      const edge = tS < 0.5 ? mix([255, 118, 28], [128, 84, 248], tS * 2) : mix([128, 84, 248], [64, 146, 255], (tS - 0.5) * 2);
+      const core = mix([255, 214, 150], [208, 228, 255], tS);
+      // night: "screen" keeps the hue where "lighter" would sum to white; day: plain painting, more opaque
+      const add = C.dark ? "screen" : "source-over", gain = C.dark ? 0.6 : 1.75;
       // flow separation inside the nozzle when throttled (guess: below about 38 bar at sea level)
       const sep = clamp((38 - P) / 18, 0, 1);
       const x0 = G.exit - sep * (G.exit - G.thr) * 0.55;
@@ -647,18 +683,18 @@
       const coreL = L * 0.5, NC = 16;
       for (let i = 0; i < NC; i++) {
         const s = i / (NC - 1), x = x0 + s * coreL, ry = r0 * 0.72 * (1 - 0.72 * s) + 1;
-        const a = (C.dark ? 0.3 : 0.38) * Math.min(1, bright) * (1 - 0.8 * s);
+        const a = (C.dark ? 0.2 : 0.46) * Math.min(1, bright) * (1 - 0.8 * s);
         const col = mix(core, edge, s * 0.7);
         g.save(); g.translate(x, AXIS); g.scale(1.9, 1);
         const cgr = g.createRadialGradient(0, 0, 0, 0, 0, ry);
-        cgr.addColorStop(0, rgba([255, 252, 246], a)); cgr.addColorStop(0.5, rgba(col, a * 0.7)); cgr.addColorStop(1, rgba(col, 0));
+        cgr.addColorStop(0, rgba(C.dark ? mix([255, 252, 246], col, 0.25) : [255, 252, 246], a)); cgr.addColorStop(0.5, rgba(col, a * 0.8)); cgr.addColorStop(1, rgba(col, 0));
         g.fillStyle = cgr; g.beginPath(); g.arc(0, 0, ry, 0, 2 * Math.PI); g.fill();
         g.restore();
       }
       // shock diamonds: overexpanded at sea level, spacing grows with pressure
       const d = r0 * 1.7 * Math.sqrt(clamp(P / 40, 0.4, 1.6)), nD = Math.round(clamp(P / 9, 2, 6));
       for (let k = 1; k <= nD; k++) {
-        const x = x0 + d * (k - 0.35), a = (C.dark ? 0.8 : 0.9) * Math.min(1, bright) * Math.pow(0.74, k - 1) * (0.9 + 0.1 * wob(k + 20));
+        const x = x0 + d * (k - 0.35), a = (C.dark ? 0.5 : 0.95) * Math.min(1, bright) * Math.pow(0.74, k - 1) * (0.9 + 0.1 * wob(k + 20));
         if (x > x0 + L * 0.85) break;
         const rr = r0 * 0.5 * (1 - 0.06 * k);
         const dg = g.createRadialGradient(x, AXIS, 0, x, AXIS, rr * 1.4);
@@ -670,7 +706,7 @@
       // light cast on the ground and the cell
       g.save(); g.globalCompositeOperation = C.dark ? "lighter" : "soft-light";
       const lg = g.createRadialGradient(G.exit + 80, AXIS, 10, G.exit + 80, GROUND, 330);
-      lg.addColorStop(0, rgba(edge, (C.dark ? 0.32 : 0.25) * Math.min(1, bright))); lg.addColorStop(1, rgba(edge, 0));
+      lg.addColorStop(0, rgba(edge, (C.dark ? 0.14 : 0.32) * Math.min(1, bright))); lg.addColorStop(1, rgba(edge, 0));
       g.fillStyle = lg; g.fillRect(200, 60, Math.max(W, xR) - 200, GROUND - 40);
       g.restore();
     }
@@ -705,15 +741,16 @@
         if (q.k === "fire") {
           if (life < 0.55) {  // flame tongue: stretched upward, flickering, yellow to red
             const fl = 0.75 + 0.25 * Math.sin(S.t * 30 + q.s);
-            g.globalAlpha = clamp(q.a * (C.dark ? 1 : 1.5) * fl * (1 - life / 0.55) * Math.min(1, q.age * 10), 0, 1);
+            g.globalAlpha = clamp(q.a * (C.dark ? 0.65 : 1.6) * fl * (1 - life / 0.55) * Math.min(1, q.age * 10), 0, 1);
             g.drawImage(life < 0.25 ? SPR.flame : SPR.fire, q.x - q.r * 0.7, q.y - q.r * 2.1, q.r * 1.4, q.r * 2.8);
             continue;
           }
           spr = SPR.grey; a = 0.25 * (1 - life);
         }
         else if (q.k === "smoke" || q.k === "vent") spr = SPR.grey;
+        else if (q.k === "soot") spr = C.dark ? SPR.grey : SPR.soot;  // soot: dark by day, a grey smudge by night
         else if (q.k === "mist") a *= C.dark ? 0.6 : 1;
-        if (C.dark && spr === SPR.white) a *= 0.7;
+        if (C.dark && spr === SPR.white) { spr = SPR.night; a *= 0.6; }  // steam at night: dim, lit only faintly
         g.globalAlpha = clamp(a, 0, 1);
         g.drawImage(spr, q.x - q.r, q.y - q.r, 2 * q.r, 2 * q.r);
       }
@@ -757,7 +794,8 @@
       o = o || {};
       g.font = `${o.bold ? "600 " : ""}${o.size || 10.5}px Inter, sans-serif`;
       const tw = g.measureText(s).width + (o.gear ? 25 : 12), h = 17;
-      const x = o.align === "right" ? sx - tw : o.align === "center" ? sx - tw / 2 : sx;
+      let x = o.align === "right" ? sx - tw : o.align === "center" ? sx - tw / 2 : sx;
+      if (o.minX != null) x = Math.max(x, o.minX);  // keep it on the canvas
       g.fillStyle = o.fill || C.pill; g.strokeStyle = border; g.lineWidth = 1.2;
       g.beginPath(); g.roundRect ? g.roundRect(x, sy - h / 2, tw, h, 8.5) : g.rect(x, sy - h / 2, tw, h); g.fill(); g.stroke();
       g.fillStyle = o.color || C.ink; g.textAlign = "left"; g.textBaseline = "middle";
@@ -802,10 +840,22 @@
       g.save();
       for (const q of S.parts) {
         const life = q.age / q.life;
-        if (q.k === "spark") {
+        if (q.k === "spark") {  // a hot fleck: a streak and a glowing head, yellow-white cooling to red
           g.globalCompositeOperation = C.dark ? "lighter" : "source-over";
-          g.strokeStyle = `rgba(255,${Math.round(230 - 120 * life)},${Math.round(140 - 120 * life)},${1 - life})`; g.lineWidth = 1.4;
-          g.beginPath(); g.moveTo(q.x, q.y); g.lineTo(q.x - q.vx * 0.02, q.y - q.vy * 0.02); g.stroke();
+          const gch = Math.round((C.dark ? 230 : 200) - 130 * life), bch = Math.round((C.dark ? 150 : 40) - 40 * life);
+          g.strokeStyle = `rgba(255,${gch},${Math.max(0, bch)},${1 - life})`; g.lineWidth = C.dark ? 1.4 : 1.8; g.lineCap = "round";
+          g.beginPath(); g.moveTo(q.x, q.y); g.lineTo(q.x - q.vx * 0.025, q.y - q.vy * 0.025); g.stroke();
+          g.fillStyle = `rgba(255,${C.dark ? 245 : 225},${C.dark ? 200 : 120},${(1 - life) * 0.95})`;
+          g.beginPath(); g.arc(q.x, q.y, C.dark ? 1.1 : 1.4, 0, 2 * Math.PI); g.fill();
+        } else if (q.k === "zap") {  // an electric arc off the straining actuator: a short jagged blue-white line
+          g.globalCompositeOperation = C.dark ? "lighter" : "source-over";
+          g.strokeStyle = C.dark ? `rgba(170,220,255,${1 - life})` : `rgba(30,100,235,${1 - life})`; g.lineWidth = 1.8;
+          g.beginPath(); g.moveTo(q.x, q.y);
+          for (let j = 1; j <= 3; j++) g.lineTo(q.x + q.vx * 0.012 * j + Math.sin(q.s + j * 2.1) * 2.5, q.y + q.vy * 0.012 * j + Math.cos(q.s + j * 1.7) * 2.5);
+          g.stroke();
+        } else if (q.k === "rust") {
+          g.globalCompositeOperation = "source-over";
+          g.fillStyle = `rgba(150,78,36,${q.a * (1 - life)})`; g.fillRect(q.x - 1, q.y - 1, 2.2, 1.6);
         } else if (q.k === "leak") {
           g.globalCompositeOperation = "source-over";
           g.globalAlpha = q.a * (1 - life) * Math.min(1, q.age * 8);
@@ -824,7 +874,7 @@
         if (!at) continue;
         const [sx, sy] = toS(at[0], at[1]);
         let tag = null, dx = 0, dy = -30;
-        if (f.kind.startsWith("stuck")) { tag = "STUCK"; dx = -34; dy = -30; }
+        if (f.kind.startsWith("stuck")) { const v = S.row && S.row["x_" + at[2]]; tag = v != null ? `STUCK at ${v.toFixed(2)}` : "STUCK"; dx = -40; dy = -30; }
         else if (f.kind === "actuator_delay") { tag = `LAG +${(f.mag * f.sev * 1000).toFixed(0)} ms`; dy = 34; }
         else if (f.kind.startsWith("bearing")) { tag = "BEARING"; dy = f.kind === "bearing_ftp" ? 38 : -36; }
         else if (f.kind.startsWith("leak")) { tag = `LEAK ${(100 * f.mag * f.sev).toFixed(0)} %`; dx = f.kind === "leak_fuel" ? 70 : -60; dy = f.kind === "leak_fuel" ? 4 : -18; }
@@ -846,7 +896,7 @@
       }
       if (S.redFlash > 0) {  // red at the edges of the view
         const v = g.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.3, w / 2, h / 2, Math.max(w, h) * 0.75);
-        v.addColorStop(0, "rgba(224,36,94,0)"); v.addColorStop(1, `rgba(224,36,94,${0.45 * S.redFlash})`);
+        v.addColorStop(0, "rgba(224,36,94,0)"); v.addColorStop(1, `rgba(224,36,94,${0.3 * S.redFlash})`);
         g.fillStyle = v; g.fillRect(0, 0, w, h);
       }
     }
@@ -886,6 +936,18 @@
         label(g, C, G.cc0, AXIS - G.rCC - (S.layers.parts && sc > 0.62 ? 34 : 22), `p_cc ${S.vis.p.toFixed(1)} bar`, "combustion-chamber pressure");
         label(g, C, G.cc0, AXIS + G.rCC + 34, `ROF ${S.vis.rof.toFixed(2)}`, "oxidiser-to-fuel mixture ratio", { color: viol("rof") ? "#ff4d4d" : null });
         label(g, C, G.exit + 2, 150, `coolant out ${Math.round(row.t_rc)} K`, "to the turbines (limit 700 K)", { color: viol("t_turbine") ? "#ff4d4d" : null });
+      }
+      // thrust, measured by the load cell in the thrust frame: an arrow into the frame and a tag in newtons
+      if (row) {
+        const F = thrustN(S.vis.p), nom = F / 25000;
+        const [ax, ay] = toS(G.inj0 - 2, AXIS - G.rCC - 17), [bx, by] = toS(342, AXIS - G.rCC - 17);
+        if (F > 50) {
+          g.save(); g.strokeStyle = C.dark ? "#ffb15c" : "#c2410c"; g.fillStyle = g.strokeStyle; g.lineWidth = clamp(1.5 + 2.5 * nom, 1.5, 4); g.lineCap = "round";
+          g.beginPath(); g.moveTo(ax, ay); g.lineTo(bx + 6, by); g.stroke();
+          g.beginPath(); g.moveTo(bx, by); g.lineTo(bx + 8, by - 5); g.lineTo(bx + 8, by + 5); g.closePath(); g.fill(); g.restore();
+        }
+        const [tx, ty] = toS(334, AXIS - 12);  // beside the load cell, left of the frame the engine pushes into
+        pill(g, C, `Thrust ${fmtN(F)} N`, tx - 4, ty, C.dark ? "#ffb15c" : "#c2410c", { align: "right", bold: true, size: 11.5, minX: view.insets.l + 4 });
       }
       // the controller cabinet's screen
       if (S.controller && S.layers.signals) {
@@ -1015,7 +1077,7 @@
       g.setTransform(dpr, 0, 0, dpr, 0, 0);
       g.clearRect(0, 0, w, h);
       xL = -cam.ox / cam.s; xR = (w - cam.ox) / cam.s; yT = -cam.oy / cam.s; yB = (h - cam.oy) / cam.s;
-      const shx = S.shake * 7 * Math.sin(S.t * 83), shy = S.shake * 5 * Math.cos(S.t * 71);  // a fault's jolt
+      const shx = S.shake * 3 * Math.sin(S.t * 83), shy = S.shake * 2 * Math.cos(S.t * 71);  // a fault's jolt, brief and small
       g.setTransform(dpr * cam.s, 0, 0, dpr * cam.s, dpr * (cam.ox + shx), dpr * (cam.oy + shy));
       // sky and forest outside the cell
       const sky = g.createLinearGradient(0, Math.min(0, yT), 0, GROUND);
@@ -1052,7 +1114,7 @@
       drawCabinet(g, C);
       drawEngine(g, C);
       drawFaultWorld(g, C);
-      drawParts(g, C, ["steam", "smoke", "purge", "vent"]);
+      drawParts(g, C, ["steam", "smoke", "purge", "vent", "soot"]);
       drawPlume(g, C);
       drawParts(g, C, ["fire"], C.dark ? "lighter" : null);
       drawRing(g, C, false);
@@ -1103,8 +1165,8 @@
         lox: ["LOX feed · liquid oxygen", [`${f2(r.m_lox, 2)} kg/s from the P8.3 run tank`], "Cryogenic, about 90 K: the white mist is air condensing on the line."],
         lng: ["LNG feed · liquefied natural gas", [`${f2(r.m_lng, 2)} kg/s from the P8.3 run tank`], "Methane, about 120 K, on its way to the fuel pump and the cooling jacket."],
         fcv: ["FCV line · fuel control valve", [], "Frozen at its 40 bar opening in the 2×2 task, like the BPV (bypass), OCV (oxidiser control) and XCV (mixer) valves. Only TFV and TOV move."],
-        frame: ["Thrust frame and load cell", [], "The engine pushes against the frame; the load cell measures the thrust."],
-        cabinet: [`Controller · ${c ? c.label : "none"}`, [], c && c.kind === "open" ? "A fixed schedule: it sends valve commands without reading the engine (open loop)." : c && c.kind === "you" ? "You: the TFV and TOV sliders, or drag the valves on the stand." : "Every 0.1 s it reads chamber pressure and mixture ratio (delayed and noisy) and sends new TFV and TOV commands."],
+        frame: ["Thrust frame and load cell", [`thrust ≈ ${fmtN(thrustN(S.vis.p))} N`], "The engine pushes against the frame; the load cell measures the thrust. Drawn here as 25 kN × p_cc / 60 bar: thrust is proportional to chamber pressure, and LUMEN's 35–80 bar envelope is 58–133 % of its nominal thrust (thesis Table 4.1)."],
+        cabinet: [`Controller · ${c ? c.label : "none"}`, [], c && c.kind === "open" ? "A fixed schedule: it sends valve commands without reading the engine (open loop)." : c && c.kind === "you" ? "You: the TFV and TOV sliders, or drag the valves on the stand." : `Every ${(c && c.dt) || 0.05} s it reads chamber pressure and mixture ratio (delayed and noisy) and sends new TFV and TOV commands.`],
         sensor: ["Sensors", [`true ${f2(r.p_cc, 1)} bar · read ${f2(r.p_meas, 1)} bar`, `true ROF ${f2(r.rof, 2)} · read ${f2(r.rof_meas, 2)}`], "The controller sees p_cc 0.1 s late and ROF 0.2 s late, with noise (switchable in the Engine panel)."],
       };
       return D[id] || null;

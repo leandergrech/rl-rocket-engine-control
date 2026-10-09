@@ -212,7 +212,7 @@
       el("dl", { class: "acr-list" }, ...items.flatMap(([a, d]) => [el("dt", {}, a), el("dd", {}, d)])))),
       el("p", { class: "hud-more" }, "More terms in the ", el("a", { href: "../9-field/#glossary" }, "glossary"), ". Across the site, hover an underlined acronym to see it spelled out."));
     const LAYER_TEXT = [["parts", "Part names", "acronyms spelled out under each label"], ["flows", "Flows and temperatures", "tags on the propellant and hot-gas lines"],
-      ["signals", "Control loop", "controller cabinet, sensor tap, signal pulses each 0.1 s"], ["callouts", "Event callouts", "start-up phases, set-point steps, limits"], ["caption", "Narration", "one line on what is happening, under the stand"]];
+      ["signals", "Control loop", "controller cabinet, sensor tap, signal pulses each control step"], ["callouts", "Event callouts", "start-up phases, set-point steps, limits"], ["caption", "Narration", "one line on what is happening, under the stand"]];
     const layerChecks = {};
     cLayers.body.append(...LAYER_TEXT.map(([k, t, d]) => {
       const c = el("input", { type: "checkbox" });
@@ -228,7 +228,7 @@
         el("li", {}, el("i", { class: "sw", style: "background:#468ceb" }), "LOX line, ", el("i", { class: "sw", style: "background:#46c8d2" }), "LNG line, ", el("i", { class: "sw", style: "background:linear-gradient(90deg,#f0aa3c,#eb3c28)" }), "warm methane, yellow to red with temperature; moving dashes are the flow"),
         el("li", {}, "Ring round each pump: its speed as a share of the limit (green, amber above 90 %, red over)."),
         el("li", {}, "Valve dial: orange is the opening, the tick is the command; a glow means the valve is still travelling."),
-        el("li", {}, "Dashed wires: the controller reads the sensor tap and commands the valves; the dots are one 0.1 s step."),
+        el("li", {}, "Dashed wires: the controller reads the sensor tap and commands the valves; the dots are one control step (0.05 s at 20 Hz)."),
         el("li", {}, "Amber ", svg(ICON.gear), " tags: engine parameters you changed. Red outlines: a limit is violated.")),
       el("h4", {}, "Keys"),
       el("ul", { class: "hud-keys" },
@@ -415,7 +415,7 @@
       el("div", { class: "lab-panel" }, el("div", { class: "lab-title" }, "Mixture ratio ROF"), cR, V.legend([[ink2(), "set point", true], [V.series(2), "engine"], [V.css("--viz-s8"), "limit"]])),
       el("div", { class: "lab-panel" }, el("div", { class: "lab-title" }, "Valves"), cU, V.legend([[V.series(1), "TFV position"], [V.series(2), "TOV position"], [ink2(), "commands", true]])),
       el("div", { class: "lab-panel" }, el("div", { class: "lab-title" }, conSel), cC),
-      el("div", { class: "lab-panel lab-wide" }, el("div", { class: "lab-title" }, "Reward per 0.1 s step"), cW));
+      el("div", { class: "lab-panel lab-wide" }, el("div", { class: "lab-title" }, "Reward per control step"), cW));
     box.append(viewer, el("div", { class: "lab-plots-title" }, "The whole episode", el("span", {}, "Hover any plot to look at that moment on the stand.")), plots);
 
     /* ================================================================ the stand */
@@ -1019,7 +1019,7 @@
       stopReplay(); rp.k = 0; cursor = null; sSlider.disabled = k === "sandbox";
       if (stand) {
         stand.setRunLabel({ open: "open loop", fb: "closed loop, PI", rl: "closed loop, " + P.ctl, old: "closed loop, " + P.ctl + " (10 Hz)", you: "you drive" }[P.group]);
-        stand.setController({ label: P.ctl, kind: P.group, color: groupColor(P.group) });
+        stand.setController({ label: P.ctl, kind: P.group, color: groupColor(P.group), dt: P.group === "old" ? M.DT_LEGACY : M.DT });
         stand.setPerturb({ heat: st.heat, tf: st.tf, to: st.to, delay: st.delay, delay0: D.params.valve_delay, sensorDelay: st.sensorDelay, noise: st.noise });
         stand.setValveDrag(k === "sandbox" ? (key, v) => { const i = key === "tfv" ? 0 : 1; sand.u[i] = v; (i ? sTov : sTfv).set(v); sandboxShow(); } : null);
         stand.clearCallouts();
