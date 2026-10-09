@@ -592,3 +592,12 @@ html.lab-full-open, html.lab-full-open body { overflow: hidden; }
 .md-typeset .tests-table td.h4 { background: color-mix(in srgb, var(--viz-s2) 26%, transparent); }
 .md-typeset .tests-table td.h5 { background: color-mix(in srgb, var(--viz-s8) 34%, transparent); }
 .md-typeset .tests-table td.best { box-shadow: inset 0 0 0 2px var(--viz-s3); }
+
+/* Dropdowns: the open list is drawn by the browser, not by the page. Give the options the page's colours
+   (Chrome, Edge and Firefox honour them) and declare the colour scheme, so native menus (macOS, Safari)
+   follow light or dark mode too. Otherwise dark mode shows light text on the browser's white list. */
+body[data-md-color-scheme="default"] select { color-scheme: light; }
+body[data-md-color-scheme="slate"] select { color-scheme: dark; }
+select option, select optgroup { background-color: var(--md-default-bg-color); color: var(--md-default-fg-color); }
+select option:checked { background-color: color-mix(in srgb, var(--brand-accent) 28%, var(--md-default-bg-color)); }
+select option:disabled { color: var(--md-default-fg-color--light); }
