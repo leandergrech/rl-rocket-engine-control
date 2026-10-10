@@ -16,7 +16,7 @@ This project builds on the work of DLR's Institute of Space Propulsion, Lampolds
 
 Every statement about LUMEN on the site cites one of these, with page numbers. The surrogate, the baselines and the Engine Lab are this repository's own work. Full list: [docs/07-references.md](docs/07-references.md).
 
-## Status (2026-10-08): the challenge release is expected around the end of October 2026; a surrogate lab in the meantime
+## Status (2026-10-10): the challenge release is expected around the end of October 2026; a surrogate lab in the meantime
 
 The challenge simulator, evaluation service and fine-tuning dataset are **not public yet**. The organisers expect to share a repository around the end of October 2026, running at 20 Hz with no preview of future set points. Every place searched before then is logged in [docs/07-references.md](docs/07-references.md#71-search-log-where-the-lumen-control-challenge-simulator-is-not).
 
@@ -32,6 +32,7 @@ What this repository contains:
     - the earlier 10 Hz agents with and without preview, kept as an ablation.
 
   They are tested for robustness and on the challenge's seven test cases in miniature, including faults: stuck valves, worn bearings, leaks, blockages, sensor faults and drift. The Engine Lab can run every controller through every test case live.
+- **The Engine Lab's test stand**: an animated LUMEN on DLR's P8.3 bench, drawn after DLR's photos (Traudt et al., IAC 2024). Pumps, valves, flows, temperatures and the plume follow the surrogate. Thrust reads in newtons at the load cell, as 25 kN × p_cc / 60 bar. Limits and malfunctions show on the failing part, with start-up, shutdown and purge sequences, in light and dark mode. The flame, steam and colours are coarse guesses.
 - **A release checker**, `scripts/check_challenge.py`, which reports new public repositories in `DLR-RA` or LUMEN packages on PyPI.
 
 When the challenge is released, the environment wrapper moves to DLR's simulator (20 Hz, no preview) and every baseline is rerun there.
@@ -54,7 +55,7 @@ mkdocs serve                       # read the review and use the Engine Lab loca
 ```
 docs/                     literature review and primer (MkDocs Material)
 includes/abbreviations.md acronyms spelled out as tooltips on every page
-docs/javascripts/         lumen-model.js (browser port of the surrogate), widgets.js, lab.js
+docs/javascripts/         lumen-model.js (browser port of the surrogate), teststand.js (the animated test stand), lab.js, widgets.js, charts.js
 src/rl_rocket_engine/     challenge_status.py (release checker)
   surrogate/              model.py, params.py, calibrate.py (+ calibrated.json), trim.py, env.py, pi.py, rl.py, metrics.py,
                           faults.py and scenarios.py (+ scenarios.json: the seven test cases in miniature)
